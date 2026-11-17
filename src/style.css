@@ -873,32 +873,7 @@ body {
   margin-bottom: 12px;
 }
 
-.pocket-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.pocket-card-expand-btn {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #475569;
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all var(--transition-fast);
-}
-
-.pocket-card-expand-btn:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
-}
 
 .pocket-jp-big {
   font-family: var(--font-jp);
@@ -943,8 +918,8 @@ body {
   font-size: 0.78rem;
   color: #94a3b8;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
 }
 
 /* ==========================================================================

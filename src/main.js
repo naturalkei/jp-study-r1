@@ -1796,12 +1796,7 @@ function renderPocket(container) {
           <div>
             <div class="pocket-card-top">
               <span class="card-badge" style="background: var(--color-surface-muted); color: var(--color-text-main); font-weight: 700;">${p.categoryName}</span>
-              <div class="pocket-card-actions">
-                <button class="pocket-card-expand-btn" data-idx="${idx}" title="점원 제시용 크게보기">
-                  <span>🔍</span> 크게보기
-                </button>
-                <button class="audio-btn" data-audio="${p.jp}" title="음성 재생">🔊</button>
-              </div>
+              <button class="audio-btn" data-audio="${p.jp}" title="음성 재생">🔊</button>
             </div>
             <div class="pocket-jp-big">${p.jp}</div>
             <div class="pocket-pron-sub">${p.pron}</div>
@@ -1810,7 +1805,6 @@ function renderPocket(container) {
           </div>
           <div class="pocket-card-footer-tip">
             <span>💡 ${p.context}</span>
-            <span style="color: var(--color-primary); font-weight: 700;">📱 전면 제시</span>
           </div>
         </div>
       `
@@ -1835,15 +1829,6 @@ function renderPocket(container) {
       // If clicking audio button directly, let audio button handler handle it
       if (e.target.closest('.audio-btn')) return;
       const idx = parseInt(card.getAttribute('data-idx'), 10);
-      openPocketModal(idx);
-    });
-  });
-
-  // Expand button click -> Open Fullscreen Modal
-  container.querySelectorAll('.pocket-card-expand-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const idx = parseInt(btn.getAttribute('data-idx'), 10);
       openPocketModal(idx);
     });
   });
