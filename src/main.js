@@ -17,7 +17,23 @@ const state = {
   currentTab: 'daily-program',
   selectedDayId: 'D-8',
   programViewMode: 'lesson', // 'lesson' or 'roadmap'
+  // Flashcard & Vocabulary State
   flashcardCategory: 'all',
+  flashcardViewMode: 'grid', // 'grid' or 'quiz'
+  flashcardOnlyUnmastered: false,
+  flashcardIsShuffled: false,
+  flashcardShuffledList: null,
+  flashcardRevealReverse: false,
+  activeFlashcardIndex: 0,
+  isFlashcardModalOpen: false,
+  isFlashcardRevealed: false,
+
+  // Flashcards Dynamic Quiz State
+  fcQuizQuestions: [],
+  fcQuizIndex: 0,
+  fcQuizAnswers: {}, // key: question index => selected option index
+  fcQuizFinished: false,
+
   masteredPhrases: new Set(storage.getMasteredPhrases()),
   checklist: storage.getChecklist(),
   audioSpeed: storage.getAudioSpeed(),
@@ -164,6 +180,7 @@ function attachHeaderEvents() {
     const targetTab = btn.getAttribute('data-tab');
     if (targetTab && targetTab !== state.currentTab) {
       closePocketModal();
+      closeFlashcardModal();
       state.currentTab = targetTab;
       document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
@@ -1855,24 +1872,119 @@ function renderCheatsheet(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Flashcards Tab
+// Utility: Array Shuffler
 // ---------------------------------------------------------------------------
-function renderFlashcards(container) {
-  const filteredPhrases = phrasesData.filter((p) => {
-    if (state.flashcardCategory === 'all') return true;
-    return p.category === state.flashcardCategory;
-  });
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
+// ---------------------------------------------------------------------------
+// 4. Flashcards & Vocabulary Master Tab (단어장, 풀스크린 뷰, 퀴즈 프로그램)
+// ---------------------------------------------------------------------------
+
+function getFilteredFlashcards() {
+  let list = phrasesData;
+  if (state.flashcardCategory !== 'all') {
+    list = list.filter((p) => p.category === state.flashcardCategory);
+  }
+  if (state.flashcardOnlyUnmastered) {
+    list = list.filter((p) => !state.masteredPhrases.has(p.id));
+  }
+  if (state.flashcardIsShuffled) {
+    if (!state.flashcardShuffledList || state.flashcardShuffledList.length === 0) {
+      state.flashcardShuffledList = shuffleArray(phrasesData);
+    }
+    const idSet = new Set(list.map((p) => p.id));
+    return state.flashcardShuffledList.filter((p) => idSet.has(p.id));
+  }
+  return list;
+}
+
+function generateFlashcardQuiz(count = 10, category = 'all') {
+  let pool = phrasesData;
+  if (category !== 'all') {
+    const catPool = phrasesData.filter((p) => p.category === category);
+    if (catPool.length >= 4) pool = catPool;
+  }
+  const selected = shuffleArray(pool).slice(0, count);
+  const allPhrases = phrasesData;
+
+  return selected.map((target, qIdx) => {
+    const types = ['jp_to_ko', 'ko_to_jp', 'listening'];
+    const qType = types[qIdx % types.length];
+
+    let questionTitle = '';
+    let promptMain = '';
+    let promptSub = '';
+    let promptAudio = target.audio;
+    let correctAnswer = '';
+    let distractors = [];
+
+    if (qType === 'jp_to_ko') {
+      questionTitle = '다음 일본어의 올바른 한국어 뜻은?';
+      promptMain = target.jp;
+      promptSub = `${target.furigana} • ${target.pronounce}`;
+      correctAnswer = target.ko;
+      const otherKos = allPhrases.filter((p) => p.ko !== target.ko).map((p) => p.ko);
+      distractors = shuffleArray([...new Set(otherKos)]).slice(0, 3);
+    } else if (qType === 'ko_to_jp') {
+      questionTitle = '다음 한국어 뜻에 해당하는 일본어 표현은?';
+      promptMain = target.ko;
+      promptSub = target.note ? `💡 ${target.note}` : (target.en ? `🇺🇸 ${target.en}` : '');
+      promptAudio = null;
+      correctAnswer = `${target.jp} (${target.pronounce})`;
+      const otherJps = allPhrases.filter((p) => p.id !== target.id).map((p) => `${p.jp} (${p.pronounce})`);
+      distractors = shuffleArray([...new Set(otherJps)]).slice(0, 3);
+    } else {
+      questionTitle = '🔊 발음을 듣고 어떤 의미인지 맞혀보세요!';
+      promptMain = '🎧 원어민 발음 청해';
+      promptSub = '위 스피커 버튼을 눌러 발음을 듣고 올바른 단어를 고르세요.';
+      correctAnswer = `${target.ko} [${target.jp}]`;
+      const otherPairs = allPhrases.filter((p) => p.id !== target.id).map((p) => `${p.ko} [${p.jp}]`);
+      distractors = shuffleArray([...new Set(otherPairs)]).slice(0, 3);
+    }
+
+    const options = shuffleArray([correctAnswer, ...distractors]);
+    const answerIndex = options.indexOf(correctAnswer);
+
+    return {
+      id: target.id,
+      qType,
+      target,
+      questionTitle,
+      promptMain,
+      promptSub,
+      promptAudio,
+      options,
+      answerIndex,
+    };
+  });
+}
+
+function renderFlashcards(container) {
+  if (state.flashcardViewMode === 'quiz') {
+    renderFlashcardQuiz(container);
+    return;
+  }
+
+  const filteredPhrases = getFilteredFlashcards();
+  const totalCount = phrasesData.length;
   const masteredCount = phrasesData.filter((p) => state.masteredPhrases.has(p.id)).length;
+  const unmasteredCount = totalCount - masteredCount;
 
   let html = `
     <div class="content-card" style="margin-bottom: 14px;">
       <div class="card-header" style="margin-bottom: 8px;">
         <h2 class="card-title">🗂️ 상황별 실전 암기장</h2>
-        <span class="card-badge">외운 카드: ${masteredCount} / ${phrasesData.length}</span>
+        <span class="card-badge">외운 카드: ${masteredCount} / ${totalCount}</span>
       </div>
       <p style="font-size: 0.85rem; color: var(--color-text-muted);">
-        카드를 읽고 발음을 들어본 뒤, 완벽히 외워진 카드는 <strong>"외웠어요 🌟"</strong> 버튼을 눌러 체크하세요.
+        카드를 클릭하면 <strong>1장씩 풀스크린으로 크게 넘겨보며</strong> 암기할 수 있습니다. 셔플 및 단어 퀴즈도 제공됩니다.
       </p>
     </div>
 
@@ -1887,25 +1999,77 @@ function renderFlashcards(container) {
       <button class="filter-btn ${state.flashcardCategory === 'emergency' ? 'active' : ''}" data-cat="emergency">🚨 응급 & 긴급</button>
     </div>
 
+    <!-- Study Toolbar -->
+    <div class="fc-toolbar">
+      <div class="fc-toolbar-top">
+        <div class="fc-mode-toggle-group">
+          <button class="fc-mode-pill ${state.flashcardViewMode === 'grid' ? 'active' : ''}" data-mode="grid">
+            🗂️ 카드 목록 (${filteredPhrases.length}개)
+          </button>
+          <button class="fc-mode-pill ${state.flashcardViewMode === 'quiz' ? 'active' : ''}" data-mode="quiz">
+            ✍️ 단어 퀴즈 풀기
+          </button>
+        </div>
+
+        <div class="fc-actions-row">
+          <button class="fc-action-btn primary" id="btn-open-fc-fullscreen">
+            <span>📱</span> <strong>1장씩 크게 외우기</strong>
+          </button>
+          <button class="fc-action-btn ${state.flashcardIsShuffled ? 'active' : ''}" id="btn-fc-shuffle">
+            <span>🔀</span> <span>${state.flashcardIsShuffled ? '셔플 해제 (원래 순서)' : '랜덤 셔플'}</span>
+          </button>
+          <button class="fc-action-btn ${state.flashcardOnlyUnmastered ? 'active' : ''}" id="btn-fc-unmastered">
+            <span>${state.flashcardOnlyUnmastered ? '✅ 전체 카드 보기' : '⬜ 외울 카드만 보기 (' + unmasteredCount + '개 남음)'}</span>
+          </button>
+          <button class="fc-action-btn ${state.flashcardRevealReverse ? 'active' : ''}" id="btn-fc-reverse">
+            <span>🔄</span> <span>${state.flashcardRevealReverse ? '🇯🇵 일본어 앞면' : '🇰🇷 뜻 앞면'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="cards-container">
-      ${filteredPhrases
-        .map((p) => {
-          const isMastered = state.masteredPhrases.has(p.id);
-          return `
-          <div class="flashcard ${isMastered ? 'is-mastered' : ''}" id="card-${p.id}">
+      ${
+        filteredPhrases.length === 0
+          ? `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; background: #ffffff; border-radius: var(--radius-md); border: 1px dashed var(--color-border);">
+          <div style="font-size: 32px; margin-bottom: 8px;">🎉</div>
+          <div style="font-size: 1.05rem; font-weight: 700; color: var(--color-text-main); margin-bottom: 6px;">현재 조건에 해당하는 카드가 없습니다!</div>
+          <div style="font-size: 0.84rem; color: var(--color-text-muted); margin-bottom: 16px;">모든 단어를 외웠거나 필터를 변경해 보세요.</div>
+          <button class="speed-toggle-btn" id="btn-reset-fc-filter">전체 카드 보기</button>
+        </div>
+      `
+          : filteredPhrases
+              .map((p, index) => {
+                const isMastered = state.masteredPhrases.has(p.id);
+                return `
+          <div class="flashcard ${isMastered ? 'is-mastered' : ''}" id="card-${p.id}" data-fc-idx="${index}">
             <div class="flashcard-header">
               <span class="flashcard-category">${p.categoryName} • ${p.tag}</span>
               <button class="audio-btn" data-audio="${p.audio}">🔊</button>
             </div>
             <div class="flashcard-main">
-              <div class="flashcard-jp">${p.jp}</div>
-              <div class="flashcard-furigana">${p.furigana}</div>
-              <div class="flashcard-pronounce">${p.pronounce}</div>
-              <div class="flashcard-ko">${p.ko}</div>
-              ${p.en ? `<div class="flashcard-en">🇺🇸 ${p.en}</div>` : ''}
-              <div class="flashcard-note">💡 ${p.note}</div>
+              ${
+                state.flashcardRevealReverse
+                  ? `
+                <div class="flashcard-ko" style="font-size: 1.15rem; font-weight: 800; color: var(--color-accent); margin-bottom: 4px;">${p.ko}</div>
+                ${p.en ? `<div class="flashcard-en">🇺🇸 ${p.en}</div>` : ''}
+                <div class="flashcard-note" style="margin-top: 6px;">💡 ${p.note}</div>
+              `
+                  : `
+                <div class="flashcard-jp">${p.jp}</div>
+                <div class="flashcard-furigana">${p.furigana}</div>
+                <div class="flashcard-pronounce">${p.pronounce}</div>
+                <div class="flashcard-ko">${p.ko}</div>
+                ${p.en ? `<div class="flashcard-en">🇺🇸 ${p.en}</div>` : ''}
+                <div class="flashcard-note">💡 ${p.note}</div>
+              `
+              }
             </div>
-            <div class="flashcard-footer">
+            <div class="flashcard-click-hint">
+              <span>🔍</span> <span>터치하여 1장씩 풀스크린 암기</span>
+            </div>
+            <div class="flashcard-footer" style="margin-top: 10px;">
               <span style="font-size: 0.72rem; color: var(--color-text-subtle);">${isMastered ? '암기 완료' : '학습 중'}</span>
               <button class="mastered-btn ${isMastered ? 'active' : ''}" data-id="${p.id}">
                 ${isMastered ? '외웠어요 🌟' : '외우기 체크 ⬜'}
@@ -1913,13 +2077,65 @@ function renderFlashcards(container) {
             </div>
           </div>
         `;
-        })
-        .join('')}
+              })
+              .join('')
+      }
     </div>
   `;
 
   container.innerHTML = html;
 
+  // Mode Toggle
+  container.querySelectorAll('.fc-mode-pill').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.getAttribute('data-mode');
+      state.flashcardViewMode = mode;
+      if (mode === 'quiz') {
+        state.fcQuizQuestions = generateFlashcardQuiz(10, state.flashcardCategory);
+        state.fcQuizIndex = 0;
+        state.fcQuizAnswers = {};
+        state.fcQuizFinished = false;
+      }
+      renderFlashcards(container);
+    });
+  });
+
+  // Action Buttons
+  document.getElementById('btn-open-fc-fullscreen')?.addEventListener('click', () => {
+    openFlashcardModal(0);
+  });
+
+  document.getElementById('btn-fc-shuffle')?.addEventListener('click', () => {
+    state.flashcardIsShuffled = !state.flashcardIsShuffled;
+    if (state.flashcardIsShuffled) {
+      state.flashcardShuffledList = shuffleArray(phrasesData);
+      showToast('🔀 단어 카드 순서를 랜덤하게 섞었습니다!');
+    } else {
+      state.flashcardShuffledList = null;
+      showToast('🔄 원래 순서로 정렬했습니다.');
+    }
+    renderFlashcards(container);
+  });
+
+  document.getElementById('btn-fc-unmastered')?.addEventListener('click', () => {
+    state.flashcardOnlyUnmastered = !state.flashcardOnlyUnmastered;
+    showToast(state.flashcardOnlyUnmastered ? '⬜ 미완료 단어만 표시합니다.' : '✅ 모든 단어를 표시합니다.');
+    renderFlashcards(container);
+  });
+
+  document.getElementById('btn-fc-reverse')?.addEventListener('click', () => {
+    state.flashcardRevealReverse = !state.flashcardRevealReverse;
+    showToast(state.flashcardRevealReverse ? '🇰🇷 한국어 뜻 먼저 보기 모드' : '🇯🇵 일본어 앞면 모드');
+    renderFlashcards(container);
+  });
+
+  document.getElementById('btn-reset-fc-filter')?.addEventListener('click', () => {
+    state.flashcardOnlyUnmastered = false;
+    state.flashcardCategory = 'all';
+    renderFlashcards(container);
+  });
+
+  // Category filter
   container.querySelectorAll('.filter-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.flashcardCategory = btn.getAttribute('data-cat');
@@ -1927,13 +2143,321 @@ function renderFlashcards(container) {
     });
   });
 
+  // Mastered button toggle
   container.querySelectorAll('.mastered-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const id = btn.getAttribute('data-id');
       const updated = storage.toggleMasteredPhrase(id);
       state.masteredPhrases = new Set(updated);
       renderFlashcards(container);
     });
+  });
+
+  // Audio button click
+  container.querySelectorAll('.audio-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = btn.getAttribute('data-audio');
+      if (text) speakJapanese(text, state.audioSpeed);
+    });
+  });
+
+  // Card click -> Open Fullscreen Modal
+  container.querySelectorAll('.flashcard').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.audio-btn') || e.target.closest('.mastered-btn')) return;
+      const idx = parseInt(card.getAttribute('data-fc-idx'), 10);
+      openFlashcardModal(idx);
+    });
+  });
+}
+
+function renderFlashcardQuiz(container) {
+  if (!state.fcQuizQuestions || state.fcQuizQuestions.length === 0) {
+    state.fcQuizQuestions = generateFlashcardQuiz(10, state.flashcardCategory);
+    state.fcQuizIndex = 0;
+    state.fcQuizAnswers = {};
+    state.fcQuizFinished = false;
+  }
+
+  const totalQ = state.fcQuizQuestions.length;
+  const correctCount = state.fcQuizQuestions.reduce((acc, q, idx) => {
+    return acc + (state.fcQuizAnswers[idx] === q.answerIndex ? 1 : 0);
+  }, 0);
+
+  if (state.fcQuizFinished) {
+    const percentage = Math.round((correctCount / totalQ) * 100);
+    const html = `
+      <div class="fc-quiz-container">
+        <!-- Result Card -->
+        <div class="fc-quiz-result-card">
+          <div style="font-size: 48px; margin-bottom: 12px;">
+            ${percentage >= 90 ? '🏆' : percentage >= 70 ? '🌟' : '💪'}
+          </div>
+          <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 6px;">
+            단어장 퀴즈 완료!
+          </h2>
+          <div style="font-size: 1.85rem; font-weight: 800; color: var(--color-primary); margin-bottom: 8px;">
+            ${correctCount} / ${totalQ} <span style="font-size: 1.15rem; color: var(--color-text-muted);">(${percentage}점)</span>
+          </div>
+          <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 24px;">
+            ${
+              percentage === 100
+                ? '대단해요! 출제된 단어를 100% 완벽하게 마스터하셨습니다.'
+                : percentage >= 70
+                ? '멋집니다! 여행 현장에서 바로바로 소통하실 수 있습니다.'
+                : '틀린 단어들을 다시 한 번 복습하고 재도전해보세요!'
+            }
+          </p>
+
+          <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <button class="quiz-next-btn" id="btn-fc-quiz-new" style="max-width: 200px;">
+              🔀 새로운 10문제 도전
+            </button>
+            <button class="speed-toggle-btn" id="btn-fc-quiz-retry" style="padding: 10px 18px; font-size: 0.88rem;">
+              🔄 이번 문제 다시 풀기
+            </button>
+            <button class="speed-toggle-btn" id="btn-fc-quiz-back" style="padding: 10px 18px; font-size: 0.88rem;">
+              🗂️ 단어장으로 돌아가기
+            </button>
+          </div>
+        </div>
+
+        <!-- Question Review List -->
+        <div class="content-card">
+          <div class="card-header" style="margin-bottom: 14px;">
+            <h3 class="card-title">📝 전체 문제 오답노트 & 정답 확인</h3>
+            <span class="card-badge">${correctCount} / ${totalQ} 정답</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${state.fcQuizQuestions
+              .map((q, idx) => {
+                const userAns = state.fcQuizAnswers[idx];
+                const isCorrect = userAns === q.answerIndex;
+                return `
+                <div style="padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid ${isCorrect ? '#a7f3d0' : '#fecdd3'}; background: ${isCorrect ? '#f0fdf4' : '#fff1f2'};">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-size: 0.78rem; font-weight: 700; color: ${isCorrect ? '#059669' : '#e11d48'};">
+                      문제 ${idx + 1}. ${isCorrect ? '✓ 정답' : '✕ 오답'}
+                    </span>
+                    <button class="audio-btn" data-audio="${q.target.audio}" style="width: 26px; height: 26px; font-size: 11px;">🔊</button>
+                  </div>
+                  <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1.05rem; margin-bottom: 2px;">${q.target.jp} (${q.target.pronounce})</div>
+                  <div style="font-size: 0.82rem; color: var(--color-text-main); margin-bottom: 2px;">뜻: <strong>${q.target.ko}</strong></div>
+                  ${!isCorrect ? `<div style="font-size: 0.76rem; color: #991b1b;">내가 고른 답: ${userAns !== undefined ? q.options[userAns] : '미선택'}</div>` : ''}
+                </div>
+              `;
+              })
+              .join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    document.getElementById('btn-fc-quiz-new')?.addEventListener('click', () => {
+      state.fcQuizQuestions = generateFlashcardQuiz(10, state.flashcardCategory);
+      state.fcQuizIndex = 0;
+      state.fcQuizAnswers = {};
+      state.fcQuizFinished = false;
+      renderFlashcards(container);
+    });
+
+    document.getElementById('btn-fc-quiz-retry')?.addEventListener('click', () => {
+      state.fcQuizIndex = 0;
+      state.fcQuizAnswers = {};
+      state.fcQuizFinished = false;
+      renderFlashcards(container);
+    });
+
+    document.getElementById('btn-fc-quiz-back')?.addEventListener('click', () => {
+      state.flashcardViewMode = 'grid';
+      renderFlashcards(container);
+    });
+
+    container.querySelectorAll('.audio-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = btn.getAttribute('data-audio');
+        if (text) speakJapanese(text, state.audioSpeed);
+      });
+    });
+
+    return;
+  }
+
+  // Active Quiz View
+  const currentQ = state.fcQuizQuestions[state.fcQuizIndex];
+  const chosenOpt = state.fcQuizAnswers[state.fcQuizIndex];
+  const isAnswered = chosenOpt !== undefined;
+  const progressPercent = Math.round(((state.fcQuizIndex + 1) / totalQ) * 100);
+
+  const typeLabel =
+    currentQ.qType === 'jp_to_ko'
+      ? '🇯🇵 일본어 ➔ 🇰🇷 한국어 뜻'
+      : currentQ.qType === 'ko_to_jp'
+      ? '🇰🇷 한국어 뜻 ➔ 🇯🇵 일본어 표현'
+      : '🎧 원어민 발음 청해 퀴즈';
+
+  const html = `
+    <div class="fc-quiz-container">
+      <!-- Quiz Header Card -->
+      <div class="fc-quiz-header-card">
+        <div class="fc-quiz-header-top">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="speed-toggle-btn" id="btn-fc-quiz-to-grid">
+              ⬅️ 단어 목록
+            </button>
+            <span class="fc-quiz-counter">문제 ${state.fcQuizIndex + 1} / ${totalQ}</span>
+          </div>
+          <span class="fc-quiz-score-badge">현재 정답: ${correctCount}개</span>
+        </div>
+        <div class="fc-quiz-progress-track">
+          <div class="fc-quiz-progress-fill" style="width: ${progressPercent}%;"></div>
+        </div>
+      </div>
+
+      <!-- Question Card -->
+      <div class="fc-quiz-question-card">
+        <span class="fc-quiz-type-tag">${typeLabel}</span>
+        <div class="fc-quiz-title">${currentQ.questionTitle}</div>
+
+        <div class="fc-quiz-prompt-main">${currentQ.promptMain}</div>
+        ${currentQ.promptSub ? `<div class="fc-quiz-prompt-sub">${currentQ.promptSub}</div>` : ''}
+
+        ${
+          currentQ.promptAudio
+            ? `
+          <div style="margin: 12px 0 16px;">
+            <button class="fc-modal-speaker-btn" id="btn-fc-quiz-audio" style="margin: 0 auto;">
+              <span>🔊</span> <span>발음 다시 듣기</span>
+            </button>
+          </div>
+        `
+            : ''
+        }
+
+        <!-- 4 Multiple Choice Options -->
+        <div class="fc-quiz-options-list">
+          ${currentQ.options
+            .map((opt, optIdx) => {
+              let optClass = 'fc-quiz-option-btn';
+              if (isAnswered) {
+                if (optIdx === currentQ.answerIndex) {
+                  optClass += ' correct';
+                } else if (optIdx === chosenOpt) {
+                  optClass += ' incorrect';
+                }
+              }
+              return `
+              <button class="${optClass}" data-opt-idx="${optIdx}" ${isAnswered ? 'disabled' : ''}>
+                <span>${opt}</span>
+                ${
+                  isAnswered && optIdx === currentQ.answerIndex
+                    ? '<span>✓ 정답</span>'
+                    : isAnswered && optIdx === chosenOpt
+                    ? '<span>✕ 오답</span>'
+                    : ''
+                }
+              </button>
+            `;
+            })
+            .join('')}
+        </div>
+
+        <!-- Explanation Feedback Box -->
+        ${
+          isAnswered
+            ? `
+          <div class="fc-quiz-feedback-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="color: ${chosenOpt === currentQ.answerIndex ? '#059669' : '#e11d48'}; font-size: 0.95rem;">
+                ${chosenOpt === currentQ.answerIndex ? '🎉 정답입니다!' : '⚠️ 틀렸습니다! 정답을 확인하세요.'}
+              </strong>
+              <button class="audio-btn" data-audio="${currentQ.target.audio}">🔊</button>
+            </div>
+            <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1.1rem; color: var(--color-text-main); margin-bottom: 3px;">
+              ${currentQ.target.jp} (${currentQ.target.furigana})
+            </div>
+            <div style="font-size: 0.86rem; color: var(--color-primary); font-weight: 600; margin-bottom: 2px;">
+              발음: ${currentQ.target.pronounce}
+            </div>
+            <div style="font-size: 0.88rem; color: var(--color-text-main); font-weight: 700; margin-bottom: 4px;">
+              의미: ${currentQ.target.ko}
+            </div>
+            ${currentQ.target.note ? `<div style="font-size: 0.8rem; color: var(--color-text-muted);">💡 ${currentQ.target.note}</div>` : ''}
+          </div>
+        `
+            : ''
+        }
+      </div>
+
+      <!-- Navigation Row -->
+      <div class="fc-quiz-nav-row">
+        <div style="display: flex; gap: 8px;">
+          <button class="speed-toggle-btn" id="btn-fc-quiz-shuffle" title="새로운 10문제로 출제">
+            🔀 문제 셔플
+          </button>
+          ${
+            state.fcQuizIndex > 0
+              ? `
+            <button class="speed-toggle-btn" id="btn-fc-quiz-prev">
+              ⬅️ 이전 문제
+            </button>
+          `
+              : ''
+          }
+        </div>
+
+        <div>
+          ${
+            isAnswered
+              ? `
+            <button class="quiz-next-btn" id="btn-fc-quiz-next">
+              ${state.fcQuizIndex + 1 < totalQ ? '다음 문제 ➡️' : '결과 확인하기 🏁'}
+            </button>
+          `
+              : `
+            <button class="quiz-next-btn" style="background: #94a3b8; border-color: #94a3b8; cursor: not-allowed;" disabled>
+              보기를 선택하세요
+            </button>
+          `
+          }
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+
+  // Option Click
+  container.querySelectorAll('.fc-quiz-option-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const optIdx = parseInt(btn.getAttribute('data-opt-idx'), 10);
+      state.fcQuizAnswers[state.fcQuizIndex] = optIdx;
+
+      if (optIdx === currentQ.answerIndex) {
+        showToast('정답입니다! 🎉');
+      } else {
+        showToast('틀렸습니다. 해설을 확인하세요!');
+      }
+
+      if (currentQ.promptAudio) {
+        speakJapanese(currentQ.target.audio, state.audioSpeed);
+      }
+
+      renderFlashcardQuiz(container);
+    });
+  });
+
+  // Audio prompt click
+  document.getElementById('btn-fc-quiz-audio')?.addEventListener('click', () => {
+    if (currentQ.promptAudio) {
+      speakJapanese(currentQ.promptAudio, state.audioSpeed);
+      showToast('🔊 재생 중...');
+    }
   });
 
   container.querySelectorAll('.audio-btn').forEach((btn) => {
@@ -1943,19 +2467,349 @@ function renderFlashcards(container) {
       if (text) speakJapanese(text, state.audioSpeed);
     });
   });
+
+  // Navigation handlers
+  document.getElementById('btn-fc-quiz-prev')?.addEventListener('click', () => {
+    if (state.fcQuizIndex > 0) {
+      state.fcQuizIndex--;
+      renderFlashcardQuiz(container);
+    }
+  });
+
+  document.getElementById('btn-fc-quiz-next')?.addEventListener('click', () => {
+    if (state.fcQuizIndex + 1 < totalQ) {
+      state.fcQuizIndex++;
+      renderFlashcardQuiz(container);
+    } else {
+      state.fcQuizFinished = true;
+      renderFlashcardQuiz(container);
+    }
+  });
+
+  document.getElementById('btn-fc-quiz-shuffle')?.addEventListener('click', () => {
+    state.fcQuizQuestions = generateFlashcardQuiz(10, state.flashcardCategory);
+    state.fcQuizIndex = 0;
+    state.fcQuizAnswers = {};
+    state.fcQuizFinished = false;
+    showToast('🔀 새로운 10문제가 출제되었습니다!');
+    renderFlashcardQuiz(container);
+  });
+
+  document.getElementById('btn-fc-quiz-to-grid')?.addEventListener('click', () => {
+    state.flashcardViewMode = 'grid';
+    renderFlashcards(container);
+  });
 }
+
+// ---------------------------------------------------------------------------
+// 4.1 Flashcards Fullscreen Single-Card Modal Layer
+// ---------------------------------------------------------------------------
+let isFlashcardModalInitialized = false;
+
+function setupFlashcardModalDOM() {
+  if (document.getElementById('flashcard-fullscreen-modal')) return;
+
+  const modalHtml = `
+    <div id="flashcard-fullscreen-modal" class="fc-modal-overlay" role="dialog" aria-modal="true" aria-label="단어장 1장씩 크게보기">
+      <div class="fc-modal-container" id="fc-modal-container">
+        <!-- Top Action Bar -->
+        <div class="fc-modal-header">
+          <div class="fc-modal-badge-group">
+            <span class="card-badge" id="fc-modal-tag" style="background: var(--color-surface-muted); color: var(--color-text-main); font-weight: 800;"></span>
+            <span class="fc-modal-counter" id="fc-modal-counter">1 / 49</span>
+          </div>
+          <div class="fc-modal-header-actions">
+            <button class="fc-modal-action-pill" id="fc-modal-btn-master" title="암기 완료 상태 변경 (단축키: M)">
+              <span id="fc-modal-master-icon">⬜</span> <span id="fc-modal-master-text">외우기 체크</span>
+            </button>
+            <button class="fc-modal-action-pill" id="fc-modal-btn-shuffle" title="순서 섞기">
+              🔀 셔플
+            </button>
+            <button class="fc-modal-close-btn" id="fc-modal-btn-close" title="닫기 (ESC)">✕</button>
+          </div>
+        </div>
+
+        <!-- Center Interactive Flippable/Reveal Body -->
+        <div class="fc-modal-body">
+          <div class="fc-modal-card-display" id="fc-modal-card-display" title="터치하여 뜻 보기 / 가리기 (단축키: Space)">
+            <!-- Front Prompt Content -->
+            <div id="fc-modal-front-area"></div>
+
+            <!-- Audio button -->
+            <div class="fc-modal-audio-btn-row">
+              <button class="fc-modal-speaker-btn" id="fc-modal-btn-speak">
+                <span>🔊</span> <span>원어민 발음 듣기</span>
+              </button>
+            </div>
+
+            <!-- Reveal Section -->
+            <div class="fc-modal-reveal-box">
+              <div class="fc-modal-reveal-trigger" id="fc-modal-reveal-trigger">
+                <span>💡</span> <span id="fc-modal-trigger-text">터치하여 한국어 뜻 확인하기</span>
+              </div>
+              <div class="fc-modal-meaning-revealed" id="fc-modal-revealed-box" style="display: none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Navigation Footer -->
+        <div class="fc-modal-footer">
+          <button class="fc-modal-nav-btn" id="fc-modal-btn-prev">
+            <span>◀</span> <span>이전 단어</span>
+          </button>
+          <span class="fc-modal-hint-text">스페이스바: 뜻보기 | ◀ ▶ 또는 스와이프</span>
+          <button class="fc-modal-nav-btn" id="fc-modal-btn-next">
+            <span>다음 단어</span> <span>▶</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  attachFlashcardModalEvents();
+  isFlashcardModalInitialized = true;
+}
+
+function updateFlashcardModalContent() {
+  const list = getFilteredFlashcards();
+  if (list.length === 0) {
+    closeFlashcardModal();
+    return;
+  }
+
+  if (state.activeFlashcardIndex < 0) state.activeFlashcardIndex = 0;
+  if (state.activeFlashcardIndex >= list.length) state.activeFlashcardIndex = list.length - 1;
+
+  const card = list[state.activeFlashcardIndex];
+  const isMastered = state.masteredPhrases.has(card.id);
+
+  // Tag & Counter
+  const tagElem = document.getElementById('fc-modal-tag');
+  const counterElem = document.getElementById('fc-modal-counter');
+  if (tagElem) tagElem.textContent = `${card.categoryName} • ${card.tag}`;
+  if (counterElem) counterElem.textContent = `${state.activeFlashcardIndex + 1} / ${list.length}`;
+
+  // Master Button
+  const masterBtn = document.getElementById('fc-modal-btn-master');
+  const masterIcon = document.getElementById('fc-modal-master-icon');
+  const masterText = document.getElementById('fc-modal-master-text');
+  if (masterBtn && masterIcon && masterText) {
+    masterBtn.classList.toggle('mastered', isMastered);
+    masterIcon.textContent = isMastered ? '⭐' : '⬜';
+    masterText.textContent = isMastered ? '외웠어요' : '외우기 체크';
+  }
+
+  // Front Area & Revealed Box
+  const frontArea = document.getElementById('fc-modal-front-area');
+  const triggerText = document.getElementById('fc-modal-trigger-text');
+  const revealedBox = document.getElementById('fc-modal-revealed-box');
+
+  if (frontArea && triggerText && revealedBox) {
+    if (!state.flashcardRevealReverse) {
+      // Normal Mode: Japanese Front
+      frontArea.innerHTML = `
+        <div class="fc-modal-jp-text">${card.jp}</div>
+        <div class="fc-modal-furigana-text">${card.furigana}</div>
+        <div class="fc-modal-pron-text">${card.pronounce}</div>
+        ${card.en ? `<div class="fc-modal-en-text">🇺🇸 ${card.en}</div>` : ''}
+      `;
+
+      triggerText.textContent = state.isFlashcardRevealed ? '터치하여 뜻 가리기' : '터치하여 한국어 뜻 확인하기';
+      revealedBox.innerHTML = `
+        <div class="fc-modal-ko-meaning">${card.ko}</div>
+        <div class="fc-modal-note">💡 ${card.note}</div>
+      `;
+    } else {
+      // Reverse Mode: Korean Meaning Front
+      frontArea.innerHTML = `
+        <div class="fc-modal-ko-meaning" style="font-size: 1.8rem; margin-bottom: 8px;">${card.ko}</div>
+        ${card.en ? `<div class="fc-modal-en-text">🇺🇸 ${card.en}</div>` : ''}
+      `;
+
+      triggerText.textContent = state.isFlashcardRevealed ? '터치하여 일본어 가리기' : '터치하여 일본어 표현 & 발음 확인';
+      revealedBox.innerHTML = `
+        <div class="fc-modal-jp-text" style="font-size: 1.5rem; margin-top: 4px;">${card.jp}</div>
+        <div class="fc-modal-furigana-text">${card.furigana}</div>
+        <div class="fc-modal-pron-text">${card.pronounce}</div>
+        <div class="fc-modal-note">💡 ${card.note}</div>
+      `;
+    }
+
+    revealedBox.style.display = state.isFlashcardRevealed ? 'block' : 'none';
+  }
+
+  // Prev / Next button states
+  const prevBtn = document.getElementById('fc-modal-btn-prev');
+  const nextBtn = document.getElementById('fc-modal-btn-next');
+  if (prevBtn) prevBtn.disabled = state.activeFlashcardIndex === 0;
+  if (nextBtn) nextBtn.disabled = state.activeFlashcardIndex >= list.length - 1;
+}
+
+function openFlashcardModal(index = 0) {
+  setupFlashcardModalDOM();
+  const list = getFilteredFlashcards();
+  if (list.length === 0) {
+    showToast('외울 카드가 없습니다.');
+    return;
+  }
+  state.activeFlashcardIndex = Math.max(0, Math.min(index, list.length - 1));
+  state.isFlashcardRevealed = false;
+  state.isFlashcardModalOpen = true;
+
+  updateFlashcardModalContent();
+
+  const modal = document.getElementById('flashcard-fullscreen-modal');
+  if (modal) {
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeFlashcardModal() {
+  const modal = document.getElementById('flashcard-fullscreen-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+  state.isFlashcardModalOpen = false;
+}
+
+function navigateFlashcardModal(delta) {
+  const list = getFilteredFlashcards();
+  const newIndex = state.activeFlashcardIndex + delta;
+  if (newIndex >= 0 && newIndex < list.length) {
+    state.activeFlashcardIndex = newIndex;
+    state.isFlashcardRevealed = false;
+    updateFlashcardModalContent();
+  }
+}
+
+function attachFlashcardModalEvents() {
+  const modal = document.getElementById('flashcard-fullscreen-modal');
+  const container = document.getElementById('fc-modal-container');
+  if (!modal || !container) return;
+
+  // Backdrop click & Close button
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeFlashcardModal();
+  });
+  document.getElementById('fc-modal-btn-close')?.addEventListener('click', closeFlashcardModal);
+
+  // Card click to toggle reveal
+  document.getElementById('fc-modal-card-display')?.addEventListener('click', (e) => {
+    if (e.target.closest('#fc-modal-btn-speak')) return;
+    state.isFlashcardRevealed = !state.isFlashcardRevealed;
+    updateFlashcardModalContent();
+  });
+
+  // Audio button
+  document.getElementById('fc-modal-btn-speak')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const list = getFilteredFlashcards();
+    const card = list[state.activeFlashcardIndex];
+    if (card) {
+      speakJapanese(card.audio, state.audioSpeed);
+      showToast('🔊 발음 재생 중...');
+    }
+  });
+
+  // Master toggle button
+  document.getElementById('fc-modal-btn-master')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const list = getFilteredFlashcards();
+    const card = list[state.activeFlashcardIndex];
+    if (card) {
+      const updated = storage.toggleMasteredPhrase(card.id);
+      state.masteredPhrases = new Set(updated);
+      showToast(state.masteredPhrases.has(card.id) ? '⭐ 외운 단어로 등록되었습니다!' : '⬜ 외우기 체크가 해제되었습니다.');
+      updateFlashcardModalContent();
+      renderCurrentTab();
+    }
+  });
+
+  // Shuffle button inside modal
+  document.getElementById('fc-modal-btn-shuffle')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.flashcardIsShuffled = true;
+    state.flashcardShuffledList = shuffleArray(phrasesData);
+    state.activeFlashcardIndex = 0;
+    state.isFlashcardRevealed = false;
+    showToast('🔀 단어를 랜덤하게 섞었습니다!');
+    updateFlashcardModalContent();
+    renderCurrentTab();
+  });
+
+  // Navigation buttons
+  document.getElementById('fc-modal-btn-prev')?.addEventListener('click', () => navigateFlashcardModal(-1));
+  document.getElementById('fc-modal-btn-next')?.addEventListener('click', () => navigateFlashcardModal(1));
+
+  // Touch swipe support on modal container
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  container.addEventListener(
+    'touchstart',
+    (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    },
+    { passive: true }
+  );
+
+  container.addEventListener(
+    'touchend',
+    (e) => {
+      const diffX = e.changedTouches[0].screenX - touchStartX;
+      const diffY = e.changedTouches[0].screenY - touchStartY;
+      if (Math.abs(diffX) > 45 && Math.abs(diffY) < 60) {
+        if (diffX < 0) {
+          navigateFlashcardModal(1); // Swipe left -> Next
+        } else {
+          navigateFlashcardModal(-1); // Swipe right -> Prev
+        }
+      }
+    },
+    { passive: true }
+  );
+}
+
+// Global keydown listener for flashcard modal
+window.addEventListener('keydown', (e) => {
+  if (!state.isFlashcardModalOpen) return;
+  if (e.key === 'Escape') {
+    closeFlashcardModal();
+  } else if (e.key === 'ArrowLeft') {
+    navigateFlashcardModal(-1);
+  } else if (e.key === 'ArrowRight') {
+    navigateFlashcardModal(1);
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    state.isFlashcardRevealed = !state.isFlashcardRevealed;
+    updateFlashcardModalContent();
+  } else if (e.key === 'm' || e.key === 'M') {
+    const list = getFilteredFlashcards();
+    const card = list[state.activeFlashcardIndex];
+    if (card) {
+      const updated = storage.toggleMasteredPhrase(card.id);
+      state.masteredPhrases = new Set(updated);
+      showToast(state.masteredPhrases.has(card.id) ? '⭐ 외운 단어로 등록되었습니다!' : '⬜ 외우기 체크가 해제되었습니다.');
+      updateFlashcardModalContent();
+      renderCurrentTab();
+    }
+  } else if (e.key === 's' || e.key === 'S') {
+    const list = getFilteredFlashcards();
+    const card = list[state.activeFlashcardIndex];
+    if (card) {
+      speakJapanese(card.audio, state.audioSpeed);
+      showToast('🔊 발음 재생 중...');
+    }
+  }
+});
 
 // ---------------------------------------------------------------------------
 // 5. Comprehensive Daily Test Tab
 // ---------------------------------------------------------------------------
-function shuffleArray(array) {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
 
 function getComprehensiveQuizScore() {
   let score = 0;
