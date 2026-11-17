@@ -1041,11 +1041,21 @@ function renderCheatsheet(container) {
               ${s.items
                 .map(
                   (item) => `
-                <div style="background: var(--color-surface-muted); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem;">
-                  <div style="color: var(--color-accent); font-weight: 600; margin-bottom: 2px;">${item.q}</div>
-                  ${item.q_en ? `<div style="color: #2563eb; font-size: 0.76rem; font-weight: 500; margin-bottom: 3px;">🇺🇸 ${item.q_en}</div>` : ''}
-                  <div style="color: var(--color-primary); font-weight: 700;">👉 ${item.a}</div>
-                  ${item.a_en ? `<div style="color: #1d4ed8; font-size: 0.76rem; font-weight: 600; margin-top: 2px;">🇺🇸 ${item.a_en}</div>` : ''}
+                <div style="background: var(--color-surface-muted); padding: 10px 12px; border-radius: 8px; font-size: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <div>
+                      <div style="color: var(--color-accent); font-weight: 700; margin-bottom: 2px;">${item.q}</div>
+                      ${item.q_en ? `<div style="color: #2563eb; font-size: 0.76rem; font-weight: 500; margin-bottom: 3px;">🇺🇸 ${item.q_en}</div>` : ''}
+                    </div>
+                    ${item.audio_q ? `<button class="audio-btn" data-audio="${item.audio_q}" title="질문 발음 듣기" style="width: 26px; height: 26px; font-size: 11px; flex-shrink: 0;">🔊</button>` : ''}
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1;">
+                    <div>
+                      <div style="color: var(--color-primary); font-weight: 700;">👉 ${item.a}</div>
+                      ${item.a_en ? `<div style="color: #1d4ed8; font-size: 0.76rem; font-weight: 600; margin-top: 2px;">🇺🇸 ${item.a_en}</div>` : ''}
+                    </div>
+                    ${item.audio_a ? `<button class="audio-btn" data-audio="${item.audio_a}" title="답변 발음 듣기" style="width: 26px; height: 26px; font-size: 11px; flex-shrink: 0;">🔊</button>` : ''}
+                  </div>
                 </div>
               `
                 )
