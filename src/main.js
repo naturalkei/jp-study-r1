@@ -624,12 +624,20 @@ function renderDailyProgram(container) {
 
       <!-- Daily Navigation Bar (이전 날 / 다음 날) -->
       <div class="daily-nav-bar">
-        <button class="daily-nav-btn" id="btn-prev-day" ${currentIndex === 0 ? 'disabled' : ''}>
-          👈 이전 날 (${currentIndex > 0 ? curriculumData[currentIndex - 1].id : ''})
-        </button>
-        <button class="daily-nav-btn" id="btn-next-day" ${currentIndex >= curriculumData.length - 1 ? 'disabled' : ''} style="background: var(--color-primary); color: white; border-color: var(--color-primary);">
-          다음 날 (${currentIndex < curriculumData.length - 1 ? curriculumData[currentIndex + 1].id : '완료'}) 👉
-        </button>
+        ${
+          currentIndex > 0
+            ? `<button class="daily-nav-btn" id="btn-prev-day">
+                👈 이전 날 (${curriculumData[currentIndex - 1].id})
+              </button>`
+            : `<div style="visibility: hidden;"></div>`
+        }
+        ${
+          currentIndex < curriculumData.length - 1
+            ? `<button class="daily-nav-btn" id="btn-next-day" style="background: var(--color-primary); color: white; border-color: var(--color-primary);">
+                다음 날 (${curriculumData[currentIndex + 1].id}) 👉
+              </button>`
+            : `<div style="visibility: hidden;"></div>`
+        }
       </div>
     `;
   }
