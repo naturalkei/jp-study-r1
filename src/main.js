@@ -1129,13 +1129,13 @@ function renderRoleplay(container) {
   const isScenarioCompleted = state.roleplayStepIndex >= currentScenario.steps.length;
 
   let html = `
-    <!-- Scenario Selection -->
-    <div class="filter-tabs" style="margin-bottom: 16px;">
+    <!-- Scenario Selection (Wrap-safe, never clipped) -->
+    <div class="scenario-pill-wrap" style="margin-bottom: 20px;">
       ${roleplayScenarios
         .map(
           (sc) => `
-        <button class="filter-btn ${sc.id === currentScenario.id ? 'active' : ''}" data-scid="${sc.id}">
-          ${sc.title}
+        <button class="scenario-pill-btn ${sc.id === currentScenario.id ? 'active' : ''}" data-scid="${sc.id}">
+          <span>${sc.title}</span>
         </button>
       `
         )
@@ -1146,7 +1146,7 @@ function renderRoleplay(container) {
       <div class="card-header">
         <div>
           <h2 class="card-title">${currentScenario.title}</h2>
-          <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 2px;">📍 ${currentScenario.location}</p>
+          <p style="font-size: 0.82rem; color: var(--color-text-muted); margin-top: 2px;">📍 ${currentScenario.location}</p>
         </div>
         <button class="speed-toggle-btn" id="btn-reset-scenario">처음부터 다시</button>
       </div>
@@ -1187,7 +1187,7 @@ function renderRoleplay(container) {
         !isScenarioCompleted && currentStep
           ? `
         <div style="margin-top: 18px; border-top: 1px solid var(--color-border); padding-top: 16px;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 10px;">
+          <div style="font-size: 0.84rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 10px;">
             💬 어떻게 대답할까요? (선택지를 터치하세요)
           </div>
           <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -1195,9 +1195,9 @@ function renderRoleplay(container) {
               .map(
                 (opt, idx) => `
               <button class="quiz-option-btn roleplay-choice-btn" data-idx="${idx}">
-                <div>
-                  <div style="font-family: var(--font-jp); font-weight: 700; color: var(--color-text-main); font-size: 0.95rem;">${opt.text}</div>
-                  <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-primary);">${opt.pronounce}</div>
+                <div style="width: 100%;">
+                  <div style="font-family: var(--font-jp); font-weight: 700; color: var(--color-text-main); font-size: 0.98rem; margin-bottom: 3px; word-break: keep-all; line-height: 1.4;">${opt.text}</div>
+                  <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary); margin-bottom: 2px;">${opt.pronounce}</div>
                   <div style="font-size: 0.78rem; color: var(--color-text-muted);">${opt.meaning}</div>
                 </div>
               </button>
@@ -1225,7 +1225,7 @@ function renderRoleplay(container) {
 
   container.innerHTML = html;
 
-  container.querySelectorAll('.filter-btn').forEach((btn) => {
+  container.querySelectorAll('.scenario-pill-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.activeRoleplayId = btn.getAttribute('data-scid');
       state.roleplayStepIndex = 0;
