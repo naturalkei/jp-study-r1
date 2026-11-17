@@ -12,14 +12,64 @@ import { convertNumberToJapanese } from './utils/numberConverter.js';
 import { initSpeech, speakJapanese } from './utils/speech.js';
 import { storage } from './utils/storage.js';
 
+// Available Tab IDs for Hash-based Page Routing
+const VALID_TABS = [
+  'daily-program',
+  'immigration',
+  'numbers',
+  'cheatsheet',
+  'flashcards',
+  'test',
+  'roleplay',
+  'pocket',
+];
+
+// Parse current URL hash (e.g., "#/roleplay?scenario=rp-konbini&mode=quiz")
+function parseHashRoute() {
+  const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+  if (!rawHash) {
+    return { tab: 'daily-program', params: {} };
+  }
+  const [tabPart, queryPart] = rawHash.split('?');
+  const tab = VALID_TABS.includes(tabPart) ? tabPart : 'daily-program';
+  const params = {};
+  if (queryPart) {
+    const usp = new URLSearchParams(queryPart);
+    usp.forEach((value, key) => {
+      params[key] = value;
+    });
+  }
+  return { tab, params };
+}
+
+// Update URL hash without causing full page reload
+function updateUrlHash(tab, params = null) {
+  let hashStr = `#/${tab}`;
+  if (params && Object.keys(params).length > 0) {
+    const usp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') {
+        usp.set(k, v);
+      }
+    }
+    const qs = usp.toString();
+    if (qs) hashStr += `?${qs}`;
+  }
+  if (window.location.hash !== hashStr) {
+    window.location.hash = hashStr;
+  }
+}
+
+const initialRoute = parseHashRoute();
+
 // Application State
 const state = {
-  currentTab: 'daily-program',
-  selectedDayId: 'D-8',
+  currentTab: initialRoute.tab,
+  selectedDayId: initialRoute.params.day || 'D-8',
   programViewMode: 'lesson', // 'lesson' or 'roadmap'
   // Flashcard & Vocabulary State
   flashcardCategory: 'all',
-  flashcardViewMode: 'grid', // 'grid' or 'quiz'
+  flashcardViewMode: initialRoute.params.mode === 'quiz' ? 'quiz' : 'grid', // 'grid' or 'quiz'
   flashcardOnlyUnmastered: false,
   flashcardIsShuffled: false,
   flashcardShuffledList: null,
@@ -44,10 +94,14 @@ const state = {
   quizUserAnswers: {}, // key: question index => selected option index
   quizFinished: false,
 
-  // Roleplay State
-  activeRoleplayId: roleplayScenarios[0].id,
+  // Roleplay State & Quiz Mode
+  activeRoleplayId: initialRoute.params.scenario || roleplayScenarios[0].id,
   roleplayStepIndex: 0,
   roleplayLogs: [],
+  roleplayViewMode: initialRoute.params.mode === 'quiz' ? 'quiz' : 'chat', // 'chat' or 'quiz'
+  rpQuizStepIndex: 0,
+  rpQuizAnswers: {}, // key: step index => { selectedIndex, isBest }
+  rpQuizFinished: false,
 
   // Immigration Simulation State
   immStepIndex: 0,
@@ -64,7 +118,7 @@ const state = {
   isPocketFlipped: false,
 
   // Numbers & Currency Master State
-  numbersSubTab: 'currency', // 'currency', 'chart', 'counters', 'calculator', 'quiz'
+  numbersSubTab: initialRoute.params.sub || 'currency', // 'currency', 'chart', 'counters', 'calculator', 'quiz'
   calcInputNumber: 1500,
   numQuizList: [...numberQuizPool],
   numQuizIndex: 0,
@@ -173,20 +227,82 @@ function renderApp() {
   renderCurrentTab();
 }
 
+function switchTab(targetTab, updateHash = true, params = null) {
+  if (!VALID_TABS.includes(targetTab)) {
+    targetTab = 'daily-program';
+  }
+  closePocketModal();
+  closeFlashcardModal();
+  state.currentTab = targetTab;
+
+  document.querySelectorAll('.tab-btn').forEach((b) => {
+    if (b.getAttribute('data-tab') === targetTab) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
+  if (updateHash) {
+    updateUrlHash(targetTab, params);
+  }
+
+  renderCurrentTab();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+let isHashListenerAttached = false;
+
 function attachHeaderEvents() {
   document.getElementById('nav-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.tab-btn');
     if (!btn) return;
     const targetTab = btn.getAttribute('data-tab');
     if (targetTab && targetTab !== state.currentTab) {
-      closePocketModal();
-      closeFlashcardModal();
-      state.currentTab = targetTab;
-      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderCurrentTab();
+      switchTab(targetTab);
     }
   });
+
+  // Attach global hashchange listener once
+  if (!isHashListenerAttached) {
+    isHashListenerAttached = true;
+    window.addEventListener('hashchange', () => {
+      const route = parseHashRoute();
+      if (route.tab !== state.currentTab) {
+        if (route.tab === 'roleplay') {
+          if (route.params.scenario) state.activeRoleplayId = route.params.scenario;
+          if (route.params.mode) state.roleplayViewMode = route.params.mode;
+        } else if (route.tab === 'daily-program' && route.params.day) {
+          state.selectedDayId = route.params.day;
+        } else if (route.tab === 'numbers' && route.params.sub) {
+          state.numbersSubTab = route.params.sub;
+        } else if (route.tab === 'flashcards' && route.params.mode) {
+          state.flashcardViewMode = route.params.mode;
+        }
+        switchTab(route.tab, false);
+      } else {
+        let needsRender = false;
+        if (route.tab === 'roleplay') {
+          if (route.params.scenario && route.params.scenario !== state.activeRoleplayId) {
+            state.activeRoleplayId = route.params.scenario;
+            state.roleplayStepIndex = 0;
+            state.roleplayLogs = [];
+            state.rpQuizStepIndex = 0;
+            state.rpQuizAnswers = {};
+            state.rpQuizFinished = false;
+            needsRender = true;
+          }
+          if (route.params.mode && route.params.mode !== state.roleplayViewMode) {
+            state.roleplayViewMode = route.params.mode;
+            needsRender = true;
+          }
+        }
+        if (needsRender) {
+          renderCurrentTab();
+        }
+      }
+    });
+  }
 
   document.getElementById('btn-audio-speed').addEventListener('click', () => {
     state.audioSpeed = state.audioSpeed === 0.85 ? 1.0 : 0.85;
@@ -674,6 +790,7 @@ function renderDailyProgram(container) {
     btn.addEventListener('click', () => {
       state.selectedDayId = btn.getAttribute('data-dayid');
       state.programViewMode = 'lesson';
+      updateUrlHash('daily-program', { day: state.selectedDayId });
       renderDailyProgram(container);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -683,6 +800,7 @@ function renderDailyProgram(container) {
   container.querySelectorAll('.day-rail-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.selectedDayId = btn.getAttribute('data-dayid');
+      updateUrlHash('daily-program', { day: state.selectedDayId });
       renderDailyProgram(container);
     });
   });
@@ -738,6 +856,7 @@ function renderDailyProgram(container) {
     prevBtn.addEventListener('click', () => {
       if (currentIndex > 0) {
         state.selectedDayId = curriculumData[currentIndex - 1].id;
+        updateUrlHash('daily-program', { day: state.selectedDayId });
         renderDailyProgram(container);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -749,6 +868,7 @@ function renderDailyProgram(container) {
     nextBtn.addEventListener('click', () => {
       if (currentIndex < curriculumData.length - 1) {
         state.selectedDayId = curriculumData[currentIndex + 1].id;
+        updateUrlHash('daily-program', { day: state.selectedDayId });
         renderDailyProgram(container);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -1560,6 +1680,7 @@ function renderNumbers(container) {
       const sub = btn.getAttribute('data-sub');
       if (sub && sub !== state.numbersSubTab) {
         state.numbersSubTab = sub;
+        updateUrlHash('numbers', { sub: state.numbersSubTab });
         renderNumbers(container);
       }
     });
@@ -2096,6 +2217,7 @@ function renderFlashcards(container) {
         state.fcQuizAnswers = {};
         state.fcQuizFinished = false;
       }
+      updateUrlHash('flashcards', { mode: state.flashcardViewMode });
       renderFlashcards(container);
     });
   });
@@ -2274,6 +2396,7 @@ function renderFlashcardQuiz(container) {
 
     document.getElementById('btn-fc-quiz-back')?.addEventListener('click', () => {
       state.flashcardViewMode = 'grid';
+      updateUrlHash('flashcards', { mode: 'grid' });
       renderFlashcards(container);
     });
 
@@ -2497,6 +2620,7 @@ function renderFlashcardQuiz(container) {
 
   document.getElementById('btn-fc-quiz-to-grid')?.addEventListener('click', () => {
     state.flashcardViewMode = 'grid';
+    updateUrlHash('flashcards', { mode: 'grid' });
     renderFlashcards(container);
   });
 }
@@ -3045,16 +3169,14 @@ function renderTest(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Roleplay Tab
+// 6. Roleplay Tab (실전 대화 시뮬레이션 & 롤플레잉 퀴즈)
 // ---------------------------------------------------------------------------
 function renderRoleplay(container) {
   const currentScenario = roleplayScenarios.find((s) => s.id === state.activeRoleplayId) || roleplayScenarios[0];
-  const currentStep = currentScenario.steps[state.roleplayStepIndex];
-  const isScenarioCompleted = state.roleplayStepIndex >= currentScenario.steps.length;
 
   let html = `
     <!-- Scenario Selection (Wrap-safe, never clipped) -->
-    <div class="scenario-pill-wrap" style="margin-bottom: 20px;">
+    <div class="scenario-pill-wrap" style="margin-bottom: 14px;">
       ${roleplayScenarios
         .map(
           (sc) => `
@@ -3066,6 +3188,78 @@ function renderRoleplay(container) {
         .join('')}
     </div>
 
+    <!-- Mode Switcher Bar -->
+    <div class="rp-mode-bar">
+      <div style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-main); display: flex; align-items: center; gap: 6px;">
+        <span>📍 ${currentScenario.location}</span>
+      </div>
+      <div class="rp-mode-toggle-group">
+        <button class="rp-mode-pill ${state.roleplayViewMode === 'chat' ? 'active' : ''}" data-mode="chat">
+          💬 실전 대화 시뮬레이션
+        </button>
+        <button class="rp-mode-pill ${state.roleplayViewMode === 'quiz' ? 'active' : ''}" data-mode="quiz">
+          🎯 롤플레잉 퀴즈 모드
+        </button>
+      </div>
+    </div>
+  `;
+
+  if (state.roleplayViewMode === 'quiz') {
+    html += renderRoleplayQuizHtml(currentScenario);
+  } else {
+    html += renderRoleplayChatHtml(currentScenario);
+  }
+
+  container.innerHTML = html;
+
+  // Scenario Switcher Buttons
+  container.querySelectorAll('.scenario-pill-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.activeRoleplayId = btn.getAttribute('data-scid');
+      state.roleplayStepIndex = 0;
+      state.roleplayLogs = [];
+      state.rpQuizStepIndex = 0;
+      state.rpQuizAnswers = {};
+      state.rpQuizFinished = false;
+      updateUrlHash('roleplay', { scenario: state.activeRoleplayId, mode: state.roleplayViewMode });
+      renderRoleplay(container);
+    });
+  });
+
+  // Mode Switcher Buttons
+  container.querySelectorAll('.rp-mode-pill').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const newMode = btn.getAttribute('data-mode');
+      if (newMode !== state.roleplayViewMode) {
+        state.roleplayViewMode = newMode;
+        updateUrlHash('roleplay', { scenario: state.activeRoleplayId, mode: state.roleplayViewMode });
+        renderRoleplay(container);
+      }
+    });
+  });
+
+  // Audio Playback
+  container.querySelectorAll('.audio-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = btn.getAttribute('data-audio');
+      if (text) speakJapanese(text, state.audioSpeed);
+    });
+  });
+
+  if (state.roleplayViewMode === 'quiz') {
+    attachRoleplayQuizEvents(container, currentScenario);
+  } else {
+    attachRoleplayChatEvents(container, currentScenario);
+  }
+}
+
+// 6-A. Roleplay Chat Mode HTML
+function renderRoleplayChatHtml(currentScenario) {
+  const currentStep = currentScenario.steps[state.roleplayStepIndex];
+  const isScenarioCompleted = state.roleplayStepIndex >= currentScenario.steps.length;
+
+  return `
     <div class="content-card">
       <div class="card-header">
         <div>
@@ -3138,25 +3332,23 @@ function renderRoleplay(container) {
           <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 16px;">
             실제 현장에서도 위 패턴대로 자신 있게 소통하실 수 있습니다!
           </p>
-          <button class="quiz-next-btn" id="btn-next-scenario" style="max-width: 200px; margin: 0 auto;">
-            다른 시나리오 도전 👉
-          </button>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button class="speed-toggle-btn" id="btn-chat-to-quiz">
+              🎯 퀴즈 모드로 실력 테스트
+            </button>
+            <button class="quiz-next-btn" id="btn-next-scenario" style="max-width: 200px; margin: 0;">
+              다른 시나리오 도전 👉
+            </button>
+          </div>
         </div>
       `
       }
     </div>
   `;
+}
 
-  container.innerHTML = html;
-
-  container.querySelectorAll('.scenario-pill-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.activeRoleplayId = btn.getAttribute('data-scid');
-      state.roleplayStepIndex = 0;
-      state.roleplayLogs = [];
-      renderRoleplay(container);
-    });
-  });
+function attachRoleplayChatEvents(container, currentScenario) {
+  const currentStep = currentScenario.steps[state.roleplayStepIndex];
 
   const resetBtn = document.getElementById('btn-reset-scenario');
   if (resetBtn) {
@@ -3166,14 +3358,6 @@ function renderRoleplay(container) {
       renderRoleplay(container);
     });
   }
-
-  container.querySelectorAll('.audio-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const text = btn.getAttribute('data-audio');
-      if (text) speakJapanese(text, state.audioSpeed);
-    });
-  });
 
   container.querySelectorAll('.roleplay-choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -3210,10 +3394,379 @@ function renderRoleplay(container) {
       state.activeRoleplayId = roleplayScenarios[nextIndex].id;
       state.roleplayStepIndex = 0;
       state.roleplayLogs = [];
+      updateUrlHash('roleplay', { scenario: state.activeRoleplayId, mode: 'chat' });
+      renderRoleplay(container);
+    });
+  }
+
+  const toQuizBtn = document.getElementById('btn-chat-to-quiz');
+  if (toQuizBtn) {
+    toQuizBtn.addEventListener('click', () => {
+      state.roleplayViewMode = 'quiz';
+      state.rpQuizStepIndex = 0;
+      state.rpQuizAnswers = {};
+      state.rpQuizFinished = false;
+      updateUrlHash('roleplay', { scenario: state.activeRoleplayId, mode: 'quiz' });
       renderRoleplay(container);
     });
   }
 }
+
+// 6-B. Roleplay Quiz Mode HTML & Events
+function renderRoleplayQuizHtml(currentScenario) {
+  const totalSteps = currentScenario.steps.length;
+  const correctCount = Object.values(state.rpQuizAnswers).filter((ans) => ans.isBest).length;
+  const isFinished = state.rpQuizFinished;
+
+  if (isFinished) {
+    const scorePct = Math.round((correctCount / totalSteps) * 100);
+    let evaluationMsg = '';
+    if (scorePct === 100) {
+      evaluationMsg = `🏆 완벽 대응 (100점)! ${currentScenario.location} 현장에서도 원어민과 망설임 없이 소통할 수 있습니다.`;
+    } else if (scorePct >= 50) {
+      evaluationMsg = `👏 훌륭합니다! 대부분의 실전 상황을 매끄럽게 통과했습니다. 아래 오답 및 모범 답변 팁을 확인해 보세요.`;
+    } else {
+      evaluationMsg = `💪 상황별 뉘앙스를 익히면 훨씬 자연스러워집니다! 아래 전체 대화 복습을 확인하고 다시 도전해 보세요.`;
+    }
+
+    return `
+      <div class="rp-quiz-container">
+        <div class="rp-quiz-result-card">
+          <div style="font-size: 46px; margin-bottom: 6px;">${scorePct === 100 ? '🎉' : '📝'}</div>
+          <h2 style="font-size: 1.3rem; font-weight: 800; margin-bottom: 4px;">${currentScenario.title}</h2>
+          <p style="font-size: 0.85rem; color: var(--color-text-muted);">롤플레잉 퀴즈 결과 리포트</p>
+
+          <div class="rp-quiz-score-badge">
+            ${correctCount} / ${totalSteps} 정답 (${scorePct}점)
+          </div>
+
+          <p style="font-size: 0.92rem; line-height: 1.5; color: var(--color-text-main); max-width: 500px; margin: 0 auto 20px;">
+            ${evaluationMsg}
+          </p>
+
+          <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button class="quiz-next-btn" id="btn-rp-quiz-retry" style="margin: 0;">
+              🔄 이 시나리오 다시 풀기
+            </button>
+            <button class="quiz-next-btn" id="btn-rp-quiz-next-sc" style="margin: 0; background: #2563eb; color: #fff;">
+              👉 다음 시나리오 퀴즈 도전
+            </button>
+            <button class="speed-toggle-btn" id="btn-rp-quiz-to-chat">
+              💬 대화 시뮬레이션으로 전환
+            </button>
+          </div>
+
+          <!-- Full Dialogue Recap -->
+          <div class="rp-review-list">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              <span>📖</span> <span>전체 대화 흐름 & 모범 답변 해설</span>
+            </h3>
+
+            ${currentScenario.steps
+              .map((step, sIdx) => {
+                const userAns = state.rpQuizAnswers[sIdx];
+                const bestOpt = step.options.find((o) => o.isBest) || step.options[0];
+                const userChosenOpt = userAns ? step.options[userAns.selectedIndex] : null;
+                const isCorrect = userAns ? userAns.isBest : false;
+
+                return `
+                <div class="rp-review-item">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 0.78rem; font-weight: 800; color: var(--color-primary); background: #eff6ff; padding: 2px 8px; border-radius: var(--radius-sm);">
+                      상황 ${sIdx + 1}
+                    </span>
+                    <span style="font-size: 0.8rem; font-weight: 700; color: ${isCorrect ? '#16a34a' : '#dc2626'};">
+                      ${isCorrect ? '✅ 정답' : '❌ 오답'}
+                    </span>
+                  </div>
+
+                  <!-- Clerk Prompt -->
+                  <div style="margin-bottom: 10px;">
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); display: flex; align-items: center; justify-content: space-between;">
+                      <span>👤 ${currentScenario.character}</span>
+                      <button class="audio-btn" data-audio="${step.message}" style="width: 24px; height: 24px; font-size: 11px;">🔊</button>
+                    </div>
+                    <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.96rem; color: var(--color-text-main); margin: 2px 0;">${step.message}</div>
+                    <div style="font-size: 0.8rem; color: var(--color-primary);">${step.pronounce}</div>
+                    <div style="font-size: 0.78rem; color: var(--color-text-muted);">${step.meaning}</div>
+                  </div>
+
+                  <!-- Best Answer -->
+                  <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: var(--radius-sm); padding: 10px; margin-bottom: 8px;">
+                    <div style="font-size: 0.78rem; font-weight: 800; color: #065f46; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                      <span>💡 모범 답변 (Best Answer)</span>
+                      <button class="audio-btn" data-audio="${bestOpt.text}" style="width: 24px; height: 24px; font-size: 11px; background: #ffffff;">🔊</button>
+                    </div>
+                    <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.94rem; color: #064e3b;">${bestOpt.text}</div>
+                    <div style="font-size: 0.8rem; color: #047857; margin: 2px 0;">${bestOpt.pronounce}</div>
+                    <div style="font-size: 0.78rem; color: #065f46;">${bestOpt.meaning}</div>
+                    <div style="font-size: 0.76rem; color: #047857; margin-top: 6px; border-top: 1px dashed #a7f3d0; padding-top: 4px;">📌 <strong>상황 팁:</strong> ${bestOpt.feedback}</div>
+                  </div>
+
+                  <!-- If user was wrong, show chosen option feedback -->
+                  ${
+                    !isCorrect && userChosenOpt
+                      ? `
+                    <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 0.78rem; color: #991b1b;">
+                      <strong>⚠️ 내가 선택한 답:</strong> ${userChosenOpt.text} (${userChosenOpt.meaning})<br>
+                      <span>👉 ${userChosenOpt.feedback}</span>
+                    </div>
+                  `
+                      : ''
+                  }
+                </div>
+              `;
+              })
+              .join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Active Question Step
+  const currentStep = currentScenario.steps[state.rpQuizStepIndex];
+  const currentAnswer = state.rpQuizAnswers[state.rpQuizStepIndex];
+  const hasAnswered = currentAnswer !== undefined;
+
+  return `
+    <div class="rp-quiz-container">
+      <!-- Status Bar Card -->
+      <div class="rp-quiz-header-card" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 800; background: #eff6ff; color: var(--color-primary); padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-primary-subtle);">
+            단계 ${state.rpQuizStepIndex + 1} / ${totalSteps}
+          </span>
+          <span style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted);">
+            현재 정답: <strong style="color: #16a34a;">${correctCount}개</strong>
+          </span>
+        </div>
+        <button class="speed-toggle-btn" id="btn-rp-quiz-reset-all">처음부터</button>
+      </div>
+
+      <!-- Prompt Question Card -->
+      <div class="rp-quiz-prompt-card">
+        <div class="rp-quiz-prompt-banner">
+          <span>🗣️</span> <span>상황 ${state.rpQuizStepIndex + 1} • ${currentScenario.character}의 말</span>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted);">
+              👤 ${currentScenario.character}
+            </div>
+            <button class="audio-btn" data-audio="${currentStep.message}" style="width: 28px; height: 28px; font-size: 13px;">🔊</button>
+          </div>
+          <div style="font-family: var(--font-jp); font-size: 1.15rem; font-weight: 700; color: var(--color-text-main); margin-bottom: 6px; line-height: 1.45;">
+            ${currentStep.message}
+          </div>
+          <div style="font-size: 0.88rem; font-weight: 600; color: var(--color-primary); margin-bottom: 4px;">
+            ${currentStep.pronounce}
+          </div>
+          <div style="font-size: 0.84rem; color: var(--color-text-muted);">
+            ${currentStep.meaning}
+          </div>
+        </div>
+
+        <div style="font-size: 0.88rem; font-weight: 700; color: var(--color-text-main); margin-bottom: 10px;">
+          🎯 상대방의 말에 가장 자연스러운 모범 답변(Best Answer)을 선택하세요:
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${currentStep.options
+            .map((opt, optIdx) => {
+              let btnClass = 'rp-quiz-option-btn';
+              let badgeHtml = '';
+
+              if (hasAnswered) {
+                if (opt.isBest) {
+                  btnClass += ' correct';
+                  badgeHtml = `<span style="font-size: 0.75rem; font-weight: 800; color: #065f46; background: #a7f3d0; padding: 2px 8px; border-radius: 999px;">✅ Best Choice</span>`;
+                } else if (currentAnswer.selectedIndex === optIdx) {
+                  btnClass += ' incorrect';
+                  badgeHtml = `<span style="font-size: 0.75rem; font-weight: 800; color: #991b1b; background: #fecdd3; padding: 2px 8px; border-radius: 999px;">❌ 내 선택</span>`;
+                }
+              }
+
+              return `
+              <button class="${btnClass}" data-optidx="${optIdx}" ${hasAnswered ? 'disabled' : ''}>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 4px;">
+                  <span style="font-size: 0.8rem; font-weight: 800; color: var(--color-text-muted);">선택지 ${optIdx + 1}</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    ${badgeHtml}
+                    <span class="audio-btn" data-audio="${opt.text}" style="width: 24px; height: 24px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; background: #f1f5f9;">🔊</span>
+                  </div>
+                </div>
+                <div style="font-family: var(--font-jp); font-size: 1.05rem; font-weight: 700; color: var(--color-text-main); line-height: 1.4; margin-bottom: 3px;">
+                  ${opt.text}
+                </div>
+                <div style="font-size: 0.84rem; font-weight: 600; color: var(--color-primary); margin-bottom: 2px;">
+                  ${opt.pronounce}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--color-text-muted);">
+                  ${opt.meaning}
+                </div>
+              </button>
+            `;
+            })
+            .join('')}
+        </div>
+
+        <!-- Instant Feedback Box -->
+        ${
+          hasAnswered
+            ? `
+          <div class="rp-quiz-feedback-box ${currentAnswer.isBest ? 'correct' : 'incorrect'}">
+            <div style="font-weight: 800; font-size: 0.92rem; margin-bottom: 4px;">
+              ${currentAnswer.isBest ? '🎉 정답입니다! (모범 답변)' : '⚠️ 아쉬운 선택입니다! (오답 피드백)'}
+            </div>
+            <div style="font-size: 0.85rem; line-height: 1.45;">
+              ${currentStep.options[currentAnswer.selectedIndex].feedback}
+            </div>
+            ${
+              !currentAnswer.isBest
+                ? `
+              <div style="font-size: 0.82rem; margin-top: 8px; border-top: 1px dashed #fecdd3; padding-top: 6px; font-weight: 600;">
+                💡 <strong>추천 모범 답변:</strong> ${currentStep.options.find((o) => o.isBest)?.text} (${currentStep.options.find((o) => o.isBest)?.meaning})
+              </div>
+            `
+                : ''
+            }
+          </div>
+        `
+            : ''
+        }
+
+        <!-- Bottom Navigation -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; gap: 10px;">
+          ${
+            state.rpQuizStepIndex > 0
+              ? `<button class="speed-toggle-btn" id="btn-rp-quiz-prev">◀ 이전 단계</button>`
+              : `<div></div>`
+          }
+
+          ${
+            hasAnswered
+              ? state.rpQuizStepIndex < totalSteps - 1
+                ? `<button class="quiz-next-btn" id="btn-rp-quiz-next" style="margin: 0;">다음 단계로 ▶</button>`
+                : `<button class="quiz-next-btn" id="btn-rp-quiz-finish" style="margin: 0; background: #16a34a; color: #fff;">결과 보기 🎉</button>`
+              : ''
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachRoleplayQuizEvents(container, currentScenario) {
+  const totalSteps = currentScenario.steps.length;
+  const currentStep = currentScenario.steps[state.rpQuizStepIndex];
+
+  // Option selection
+  container.querySelectorAll('.rp-quiz-option-btn:not(:disabled)').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      // Avoid firing if the user clicked the audio speaker
+      if (e.target.closest('.audio-btn')) return;
+
+      const optIdx = parseInt(btn.getAttribute('data-optidx'), 10);
+      const chosen = currentStep.options[optIdx];
+
+      state.rpQuizAnswers[state.rpQuizStepIndex] = {
+        selectedIndex: optIdx,
+        isBest: chosen.isBest,
+      };
+
+      speakJapanese(chosen.text, state.audioSpeed);
+      renderRoleplay(container);
+    });
+  });
+
+  // Next Step button
+  const nextBtn = document.getElementById('btn-rp-quiz-next');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      if (state.rpQuizStepIndex < totalSteps - 1) {
+        state.rpQuizStepIndex++;
+        renderRoleplay(container);
+      }
+    });
+  }
+
+  // Prev Step button
+  const prevBtn = document.getElementById('btn-rp-quiz-prev');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      if (state.rpQuizStepIndex > 0) {
+        state.rpQuizStepIndex--;
+        renderRoleplay(container);
+      }
+    });
+  }
+
+  // Finish button
+  const finishBtn = document.getElementById('btn-rp-quiz-finish');
+  if (finishBtn) {
+    finishBtn.addEventListener('click', () => {
+      state.rpQuizFinished = true;
+      storage.markRoleplayDone(currentScenario.id);
+      renderRoleplay(container);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  // Reset all
+  const resetAllBtn = document.getElementById('btn-rp-quiz-reset-all');
+  if (resetAllBtn) {
+    resetAllBtn.addEventListener('click', () => {
+      state.rpQuizStepIndex = 0;
+      state.rpQuizAnswers = {};
+      state.rpQuizFinished = false;
+      renderRoleplay(container);
+    });
+  }
+
+  // Retry button (from result card)
+  const retryBtn = document.getElementById('btn-rp-quiz-retry');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', () => {
+      state.rpQuizStepIndex = 0;
+      state.rpQuizAnswers = {};
+      state.rpQuizFinished = false;
+      renderRoleplay(container);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  // Next Scenario button (from result card)
+  const nextScenarioBtn = document.getElementById('btn-rp-quiz-next-sc');
+  if (nextScenarioBtn) {
+    nextScenarioBtn.addEventListener('click', () => {
+      const currentIndex = roleplayScenarios.findIndex((s) => s.id === state.activeRoleplayId);
+      const nextIndex = (currentIndex + 1) % roleplayScenarios.length;
+      state.activeRoleplayId = roleplayScenarios[nextIndex].id;
+      state.rpQuizStepIndex = 0;
+      state.rpQuizAnswers = {};
+      state.rpQuizFinished = false;
+      updateUrlHash('roleplay', { scenario: state.activeRoleplayId, mode: 'quiz' });
+      renderRoleplay(container);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  // Switch to chat button (from result card)
+  const toChatBtn = document.getElementById('btn-rp-quiz-to-chat');
+  if (toChatBtn) {
+    toChatBtn.addEventListener('click', () => {
+      state.roleplayViewMode = 'chat';
+      state.roleplayStepIndex = 0;
+      state.roleplayLogs = [];
+      updateUrlHash('roleplay', { scenario: state.activeRoleplayId, mode: 'chat' });
+      renderRoleplay(container);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // 7. Pocket Mode Tab & Fullscreen Large View Layer
@@ -3908,3 +4461,7 @@ window.addEventListener('keydown', (e) => {
 
 // Start application
 renderApp();
+
+if (!window.location.hash) {
+  updateUrlHash(state.currentTab);
+}

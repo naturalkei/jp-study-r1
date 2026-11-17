@@ -3065,3 +3065,170 @@ body {
   text-align: center;
   box-shadow: var(--shadow-sm);
 }
+
+/* ==========================================================================
+   Roleplay Quiz Mode Styles (롤플레잉 퀴즈 모드)
+   ========================================================================== */
+.rp-mode-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rp-mode-toggle-group {
+  display: flex;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 4px;
+}
+
+.rp-mode-pill {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.rp-mode-pill.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.rp-quiz-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rp-quiz-header-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.rp-quiz-prompt-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+
+.rp-quiz-prompt-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-subtle);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 14px;
+}
+
+.rp-quiz-feedback-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-top: 14px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.rp-quiz-feedback-box.correct {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.rp-quiz-feedback-box.incorrect {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #991b1b;
+}
+
+.rp-quiz-option-btn {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rp-quiz-option-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: #f0f7ff;
+}
+
+.rp-quiz-option-btn.correct {
+  border-color: #10b981;
+  background: #ecfdf5;
+}
+
+.rp-quiz-option-btn.incorrect {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.rp-quiz-option-btn:disabled {
+  cursor: default;
+}
+
+.rp-quiz-result-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  text-align: center;
+}
+
+.rp-quiz-score-badge {
+  display: inline-block;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  background: #eff6ff;
+  border: 1px solid var(--color-primary-subtle);
+  padding: 8px 24px;
+  border-radius: var(--radius-md);
+  margin: 12px 0 16px;
+}
+
+.rp-review-list {
+  margin-top: 20px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rp-review-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  background: #f8fafc;
+}
+
