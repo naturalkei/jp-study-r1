@@ -412,9 +412,14 @@ function renderDailyProgram(container) {
                 <div style="font-size: 0.92rem; font-weight: 700; color: var(--color-primary); margin-bottom: 4px;">
                   ${p.pronounce}
                 </div>
-                <div style="font-size: 0.88rem; font-weight: 600; color: var(--color-text-main); margin-bottom: 4px;">
+                <div style="font-size: 0.88rem; font-weight: 600; color: var(--color-text-main); margin-bottom: 2px;">
                   👉 ${p.ko}
                 </div>
+                ${p.en ? `
+                <div style="font-size: 0.82rem; font-weight: 600; color: #2563eb; margin-bottom: 6px;">
+                  🇺🇸 ${p.en}
+                </div>
+                ` : ''}
                 <div style="font-size: 0.78rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                   💡 ${p.note}
                 </div>
@@ -446,7 +451,8 @@ function renderDailyProgram(container) {
                     <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-primary); margin-bottom: 2px;">[${line.speaker}]</div>
                     <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1rem; color: var(--color-text-main);">${line.jp}</div>
                     <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">${line.pron}</div>
-                    <div style="font-size: 0.8rem; color: var(--color-text-muted);">${line.ko}</div>
+                    <div style="font-size: 0.8rem; color: var(--color-text-muted);">👉 ${line.ko}</div>
+                    ${line.en ? `<div style="font-size: 0.78rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 ${line.en}</div>` : ''}
                   </div>
                   <button class="audio-btn" data-audio="${line.jp}">🔊</button>
                 </div>
@@ -732,6 +738,7 @@ function renderImmigrationClinic(container) {
                   <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.92rem; color: var(--color-text-main);">${m.jp}</div>
                   <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-primary);">${m.pron}</div>
                   <div style="font-size: 0.78rem; color: var(--color-text-muted);">${m.ko}</div>
+                  ${m.en ? `<div style="font-size: 0.76rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 ${m.en}</div>` : ''}
                 </div>
                 <button class="audio-btn" data-audio="${m.audio}">🔊</button>
               </div>
@@ -756,6 +763,7 @@ function renderImmigrationClinic(container) {
                     <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-accent); margin-bottom: 2px;">[심사관 질문]</div>
                     <div class="qa-q-text">${qa.q_jp}</div>
                     <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted);">${qa.q_pron} • ${qa.q_ko}</div>
+                    ${qa.q_en ? `<div style="font-size: 0.78rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 Q: ${qa.q_en}</div>` : ''}
                   </div>
                   <button class="audio-btn" data-audio="${qa.audio_q}">🔊</button>
                 </div>
@@ -765,6 +773,7 @@ function renderImmigrationClinic(container) {
                       <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-primary); margin-bottom: 2px;">[나의 0.1초 답변]</div>
                       <div class="qa-a-text">${qa.a_jp}</div>
                       <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">${qa.a_pron} • ${qa.a_ko}</div>
+                      ${qa.a_en ? `<div style="font-size: 0.8rem; font-weight: 600; color: #1d4ed8; margin-top: 2px;">🇺🇸 A: ${qa.a_en}</div>` : ''}
                     </div>
                     <button class="audio-btn" data-audio="${qa.audio_a}">🔊</button>
                   </div>
@@ -799,6 +808,7 @@ function renderImmigrationClinic(container) {
             <div class="chat-bubble-speaker">${log.speaker === 'staff' ? '입국심사관' : '나'}</div>
             <div class="chat-jp-text">${log.text}</div>
             <div class="chat-ko-sub">${log.ko}</div>
+            ${log.en ? `<div style="font-size: 0.76rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 ${log.en}</div>` : ''}
           </div>
         `
           )
@@ -815,6 +825,7 @@ function renderImmigrationClinic(container) {
             <div class="chat-jp-text">${immigrationData.dialogueSimulation[state.immStepIndex].officer}</div>
             <div style="font-size: 0.8rem; color: var(--color-primary); font-weight: 600;">${immigrationData.dialogueSimulation[state.immStepIndex].officerPron}</div>
             <div class="chat-ko-sub">${immigrationData.dialogueSimulation[state.immStepIndex].officerKo}</div>
+            ${immigrationData.dialogueSimulation[state.immStepIndex].officerEn ? `<div style="font-size: 0.78rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 ${immigrationData.dialogueSimulation[state.immStepIndex].officerEn}</div>` : ''}
           </div>
         `
             : `
@@ -846,6 +857,7 @@ function renderImmigrationClinic(container) {
                   <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.95rem;">${opt.text}</div>
                   <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-primary);">${opt.pron}</div>
                   <div style="font-size: 0.78rem; color: var(--color-text-muted);">${opt.ko}</div>
+                  ${opt.en ? `<div style="font-size: 0.76rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 ${opt.en}</div>` : ''}
                 </div>
               </button>
             `
@@ -936,6 +948,7 @@ function renderCheatsheet(container) {
               </div>
               <div class="magic-pronounce">${w.pronounce}</div>
               <div class="magic-ko">${w.ko}</div>
+              ${w.en ? `<div style="font-size: 0.8rem; font-weight: 600; color: #2563eb; margin-top: 2px;">🇺🇸 ${w.en}</div>` : ''}
             </div>
             <div class="magic-tip">💡 ${w.tip}</div>
           </div>
@@ -960,7 +973,10 @@ function renderCheatsheet(container) {
         <div class="formula-block">
           <div class="formula-header">
             <span class="formula-pattern">${f.pattern}</span>
-            <span class="formula-meaning">${f.meaning}</span>
+            <div style="text-align: right;">
+              <div class="formula-meaning">${f.meaning}</div>
+              ${f.meaningEn ? `<div style="font-size: 0.78rem; font-weight: 600; color: #2563eb;">🇺🇸 ${f.meaningEn}</div>` : ''}
+            </div>
           </div>
           <ul class="formula-examples">
             ${f.examples
@@ -969,7 +985,7 @@ function renderCheatsheet(container) {
               <li class="formula-ex-item">
                 <div class="formula-ex-text">
                   <span class="formula-ex-jp">${ex.jp}</span>
-                  <span class="formula-ex-sub">${ex.pronounce} • ${ex.ko}</span>
+                  <span class="formula-ex-sub">${ex.pronounce} • ${ex.ko} ${ex.en ? `<span style="color: #2563eb; font-weight: 600;">• 🇺🇸 ${ex.en}</span>` : ''}</span>
                 </div>
                 <button class="audio-btn" data-audio="${ex.jp}">🔊</button>
               </li>
@@ -1026,8 +1042,10 @@ function renderCheatsheet(container) {
                 .map(
                   (item) => `
                 <div style="background: var(--color-surface-muted); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem;">
-                  <div style="color: var(--color-accent); font-weight: 600; margin-bottom: 3px;">${item.q}</div>
+                  <div style="color: var(--color-accent); font-weight: 600; margin-bottom: 2px;">${item.q}</div>
+                  ${item.q_en ? `<div style="color: #2563eb; font-size: 0.76rem; font-weight: 500; margin-bottom: 3px;">🇺🇸 ${item.q_en}</div>` : ''}
                   <div style="color: var(--color-primary); font-weight: 700;">👉 ${item.a}</div>
+                  ${item.a_en ? `<div style="color: #1d4ed8; font-size: 0.76rem; font-weight: 600; margin-top: 2px;">🇺🇸 ${item.a_en}</div>` : ''}
                 </div>
               `
                 )
@@ -1107,6 +1125,7 @@ function renderFlashcards(container) {
               <div class="flashcard-furigana">${p.furigana}</div>
               <div class="flashcard-pronounce">${p.pronounce}</div>
               <div class="flashcard-ko">${p.ko}</div>
+              ${p.en ? `<div class="flashcard-en">🇺🇸 ${p.en}</div>` : ''}
               <div class="flashcard-note">💡 ${p.note}</div>
             </div>
             <div class="flashcard-footer">
@@ -1492,6 +1511,7 @@ function setupPocketModalDOM() {
             <div class="pocket-modal-jp" id="pocket-modal-jp"></div>
             <div class="pocket-modal-pron" id="pocket-modal-pron"></div>
             <div class="pocket-modal-ko" id="pocket-modal-ko"></div>
+            <div class="pocket-modal-en" id="pocket-modal-en"></div>
             <div class="pocket-modal-context" id="pocket-modal-context"></div>
           </div>
         </div>
@@ -1647,6 +1667,7 @@ function updatePocketModalContent() {
   const jpElem = document.getElementById('pocket-modal-jp');
   const pronElem = document.getElementById('pocket-modal-pron');
   const koElem = document.getElementById('pocket-modal-ko');
+  const enElem = document.getElementById('pocket-modal-en');
   const contextElem = document.getElementById('pocket-modal-context');
   const bodyElem = document.getElementById('pocket-modal-body');
   const flipBtn = document.getElementById('pocket-btn-flip');
@@ -1662,6 +1683,10 @@ function updatePocketModalContent() {
   if (jpElem) jpElem.textContent = card.jp;
   if (pronElem) pronElem.textContent = card.pron;
   if (koElem) koElem.textContent = `👉 ${card.ko}`;
+  if (enElem) {
+    enElem.textContent = card.en ? `🇺🇸 ${card.en}` : '';
+    enElem.style.display = card.en ? 'block' : 'none';
+  }
   if (contextElem) contextElem.innerHTML = `💡 <strong>사용 상황:</strong> ${card.context}`;
 
   // Reset flip on card switch
@@ -1771,6 +1796,7 @@ function renderPocket(container) {
             <div class="pocket-jp-big">${p.jp}</div>
             <div class="pocket-pron-sub">${p.pron}</div>
             <div class="pocket-ko-label">👉 ${p.ko}</div>
+            ${p.en ? `<div class="pocket-en-label">🇺🇸 ${p.en}</div>` : ''}
           </div>
           <div class="pocket-card-footer-tip">
             <span>💡 ${p.context}</span>
