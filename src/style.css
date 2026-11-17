@@ -967,6 +967,106 @@ body {
   font-weight: 700;
 }
 
+/* Daily Learning Program Lecture Styles */
+.view-mode-switcher {
+  display: flex;
+  background: var(--color-surface-muted);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  gap: 4px;
+  margin-bottom: 20px;
+  border: 1px solid var(--color-border);
+}
+
+.view-mode-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.view-mode-btn:hover {
+  color: var(--color-text-main);
+}
+
+.view-mode-btn.active {
+  background: #ffffff;
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.lecture-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.lecture-topic-block {
+  background: #f8fafc;
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.lecture-topic-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin-bottom: 8px;
+}
+
+.lecture-topic-body {
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+/* Roadmap Table */
+.roadmap-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  background: #ffffff;
+}
+
+.roadmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.roadmap-table th {
+  background: var(--color-surface-muted);
+  padding: 12px 14px;
+  font-weight: 700;
+  color: var(--color-text-main);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.roadmap-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.roadmap-table tr:hover td {
+  background: #f8fafc;
+}
+
 /* Dedicated Daily Learning Page (일자별 전용 학습실) */
 .day-selector-rail {
   display: flex;

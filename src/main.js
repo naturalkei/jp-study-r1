@@ -5,13 +5,15 @@ import { phrasesData } from './data/phrases.js';
 import { quizQuestions } from './data/quizzes.js';
 import { roleplayScenarios } from './data/roleplay.js';
 import { immigrationData } from './data/immigration.js';
+import { dailyLessonsData } from './data/dailyLessons.js';
 import { initSpeech, speakJapanese } from './utils/speech.js';
 import { storage } from './utils/storage.js';
 
 // Application State
 const state = {
-  currentTab: 'daily-studio',
+  currentTab: 'daily-program',
   selectedDayId: 'D-8',
+  programViewMode: 'lesson', // 'lesson' or 'roadmap'
   flashcardCategory: 'all',
   masteredPhrases: new Set(storage.getMasteredPhrases()),
   checklist: storage.getChecklist(),
@@ -88,8 +90,8 @@ function renderApp() {
       </header>
 
       <nav class="nav-tabs" id="nav-tabs">
-        <button class="tab-btn ${state.currentTab === 'daily-studio' ? 'active' : ''}" data-tab="daily-studio">
-          📅 일자별 학습실
+        <button class="tab-btn ${state.currentTab === 'daily-program' ? 'active' : ''}" data-tab="daily-program">
+          📚 데일리 학습 프로그램
         </button>
         <button class="tab-btn ${state.currentTab === 'immigration' ? 'active' : ''}" data-tab="immigration">
           ✈️ 공항 입출국심사
@@ -168,8 +170,8 @@ function renderCurrentTab() {
   if (!container) return;
 
   switch (state.currentTab) {
-    case 'daily-studio':
-      renderDailyStudio(container);
+    case 'daily-program':
+      renderDailyProgram(container);
       break;
     case 'immigration':
       renderImmigrationClinic(container);
@@ -190,264 +192,424 @@ function renderCurrentTab() {
       renderPocket(container);
       break;
     default:
-      renderDailyStudio(container);
+      renderDailyProgram(container);
   }
 }
 
 // ---------------------------------------------------------------------------
-// 1. Dedicated Daily Studio (일자별 전용 학습 페이지)
+// 1. Daily Learning Program (데일리 학습 프로그램 - 교재 & 로드맵)
 // ---------------------------------------------------------------------------
-function renderDailyStudio(container) {
+function renderDailyProgram(container) {
   const currentDay = curriculumData.find((d) => d.id === state.selectedDayId) || curriculumData[0];
   const currentIndex = curriculumData.findIndex((d) => d.id === currentDay.id);
+  const currentLesson = dailyLessonsData[currentDay.id] || { focus: '', lecture: [] };
 
-  // Calculate day completion
+  // Calculate overall completion
   let totalTasks = 0;
   let doneTasks = 0;
-  ['morning', 'lunch', 'night'].forEach((phase) => {
-    currentDay.routine[phase].forEach((_, idx) => {
-      totalTasks++;
-      const key = `${currentDay.id}_${phase}_${idx}`;
-      if (state.checklist[key]) doneTasks++;
+  curriculumData.forEach((day) => {
+    ['morning', 'lunch', 'night'].forEach((phase) => {
+      day.routine[phase].forEach((_, idx) => {
+        totalTasks++;
+        const key = `${day.id}_${phase}_${idx}`;
+        if (state.checklist[key]) doneTasks++;
+      });
     });
   });
-  const dayProgress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  const overallProgress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  // Calculate current day completion
+  let dayTotalTasks = 0;
+  let dayDoneTasks = 0;
+  ['morning', 'lunch', 'night'].forEach((phase) => {
+    currentDay.routine[phase].forEach((_, idx) => {
+      dayTotalTasks++;
+      const key = `${currentDay.id}_${phase}_${idx}`;
+      if (state.checklist[key]) dayDoneTasks++;
+    });
+  });
+  const dayProgress = dayTotalTasks > 0 ? Math.round((dayDoneTasks / dayTotalTasks) * 100) : 0;
 
   let html = `
-    <!-- Day Selection Rail -->
-    <div class="day-selector-rail">
-      ${curriculumData
-        .map((d) => {
-          const isSelected = d.id === currentDay.id;
-          return `
-          <button class="day-rail-btn ${isSelected ? 'active' : ''}" data-dayid="${d.id}">
-            <span class="rail-id">${d.id}</span>
-            <span class="rail-sub">${d.date}</span>
-          </button>
-        `;
-        })
-        .join('')}
+    <!-- View Mode Switcher -->
+    <div class="view-mode-switcher">
+      <button class="view-mode-btn ${state.programViewMode === 'lesson' ? 'active' : ''}" data-mode="lesson">
+        📖 일자별 교재 학습 (${currentDay.id})
+      </button>
+      <button class="view-mode-btn ${state.programViewMode === 'roadmap' ? 'active' : ''}" data-mode="roadmap">
+        📊 전체 마일스톤 로드맵
+      </button>
     </div>
+  `;
 
-    <!-- Day Hero Banner -->
-    <div class="day-page-hero">
-      <div class="day-page-hero-top">
-        <span class="day-page-badge">${currentDay.badge}</span>
-        <span style="font-size: 0.8rem; font-weight: 700; opacity: 0.95;">진도율: ${doneTasks}/${totalTasks} (${dayProgress}%)</span>
-      </div>
-      <h2 class="day-page-title">${currentDay.title}</h2>
-      <p style="font-size: 0.95rem; font-weight: 600; opacity: 0.95; margin-bottom: 6px;">👉 ${currentDay.subtitle || ''}</p>
-      <p class="day-page-sub">${currentDay.description}</p>
-    </div>
-
-    <!-- Section 1: 3-Step Daily Routine -->
-    <div class="content-card">
-      <div class="card-header">
-        <h3 class="card-title">⏰ 오늘의 30분 데일리 실천 루틴</h3>
-        <span class="card-badge">터치하여 완료 체크</span>
-      </div>
-      <div class="routine-section">
-        <div class="routine-phase">
-          <div class="phase-label">☀️ 아침 루틴 (10분 발음 체화)</div>
-          <ul class="routine-list">
-            ${currentDay.routine.morning
-              .map((t, idx) => {
-                const key = `${currentDay.id}_morning_${idx}`;
-                const isChecked = !!state.checklist[key];
-                return `
-                <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
-                  <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
-                  <span>${t}</span>
-                </li>
-              `;
-              })
-              .join('')}
-          </ul>
+  if (state.programViewMode === 'roadmap') {
+    // -----------------------------------------------------------------------
+    // ROADMAP MODE: 전체 커리큘럼 로드맵 & 마일스톤 테이블
+    // -----------------------------------------------------------------------
+    html += `
+      <!-- Overall Progress Card -->
+      <div class="content-card" style="background: linear-gradient(to right, #ffffff, #f8fafc); border-left: 4px solid var(--color-primary);">
+        <div class="card-header" style="margin-bottom: 8px;">
+          <h2 class="card-title">📍 D-8 ~ D-Day 마일스톤 전체 달성률</h2>
+          <span class="card-badge">${doneTasks} / ${totalTasks} 완료 (${overallProgress}%)</span>
         </div>
-
-        <div class="routine-phase">
-          <div class="phase-label">🍱 점심 루틴 (10분 단어 & 미니 퀴즈)</div>
-          <ul class="routine-list">
-            ${currentDay.routine.lunch
-              .map((t, idx) => {
-                const key = `${currentDay.id}_lunch_${idx}`;
-                const isChecked = !!state.checklist[key];
-                return `
-                <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
-                  <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
-                  <span>${t}</span>
-                </li>
-              `;
-              })
-              .join('')}
-          </ul>
-        </div>
-
-        <div class="routine-phase">
-          <div class="phase-label">🌙 저녁 루틴 (10분 롤플레잉 & 복습)</div>
-          <ul class="routine-list">
-            ${currentDay.routine.night
-              .map((t, idx) => {
-                const key = `${currentDay.id}_night_${idx}`;
-                const isChecked = !!state.checklist[key];
-                return `
-                <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
-                  <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
-                  <span>${t}</span>
-                </li>
-              `;
-              })
-              .join('')}
-          </ul>
+        <div style="background: #e2e8f0; height: 8px; border-radius: 9999px; overflow: hidden; margin-top: 6px;">
+          <div style="background: var(--color-primary); height: 100%; width: ${overallProgress}%; transition: width 0.3s ease;"></div>
         </div>
       </div>
-    </div>
 
-    <!-- Section 2: Key Phrases Booster -->
-    <div class="content-card">
-      <div class="card-header">
-        <h3 class="card-title">🔑 오늘 꼭 챙길 핵심 문장</h3>
-        <span class="card-badge">원터치 오디오</span>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        ${currentDay.keyPhrases
-          .map(
-            (p) => `
-          <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; transition: all 0.2s ease;">
-            <div style="flex: 1;">
-              <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1.15rem; color: var(--color-text-main); margin-bottom: 2px;">
-                ${p.jp}
-              </div>
-              <div style="font-size: 0.8rem; color: var(--color-text-subtle); margin-bottom: 4px;">
-                ${p.furigana || ''}
-              </div>
-              <div style="font-size: 0.92rem; font-weight: 700; color: var(--color-primary); margin-bottom: 4px;">
-                ${p.pronounce}
-              </div>
-              <div style="font-size: 0.88rem; font-weight: 600; color: var(--color-text-main); margin-bottom: 4px;">
-                👉 ${p.ko}
-              </div>
-              <div style="font-size: 0.78rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                💡 ${p.note}
-              </div>
-            </div>
-            <button class="audio-btn" data-audio="${p.audio}" title="발음 듣기">🔊</button>
-          </div>
-        `
-          )
-          .join('')}
-      </div>
-    </div>
-
-    <!-- Section 3: Today's Dialogue Simulation -->
-    ${
-      currentDay.dialogue
-        ? `
+      <!-- 30-Minute Routine Guide Card -->
       <div class="content-card">
         <div class="card-header">
-          <h3 class="card-title">💬 오늘의 실전 대화 시뮬레이션</h3>
-          <span class="card-badge">${currentDay.dialogue.title}</span>
+          <h3 class="card-title">⏰ 왕초보 30분 데일리 실천 공부법</h3>
+          <span class="card-badge">3-Step Routine</span>
         </div>
-        <div class="daily-dialogue-box">
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 14px;">
+          문법 책을 파고드는 대신, 하루 세 번 10분씩 1초 패턴 반사신경을 기르는 속성 커리큘럼입니다.
+        </p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <div style="background: var(--color-surface-muted); padding: 14px; border-radius: 8px; border-top: 3px solid #f59e0b;">
+            <div style="font-weight: 700; color: #b45309; font-size: 0.88rem; margin-bottom: 4px;">🌅 아침 기상 / 출근 (10분)</div>
+            <div style="font-size: 0.82rem; color: var(--color-text-muted);">당일 핵심 1초 패턴 5개 소리 내어 10회 말하기 (TTS 발음 청취)</div>
+          </div>
+          <div style="background: var(--color-surface-muted); padding: 14px; border-radius: 8px; border-top: 3px solid #3b82f6;">
+            <div style="font-weight: 700; color: #1d4ed8; font-size: 0.88rem; margin-bottom: 4px;">🍱 점심 식사 후 (10분)</div>
+            <div style="font-size: 0.82rem; color: var(--color-text-muted);">엔화 계산기 소리 듣기 & 오늘의 미니 퀴즈 풀기 (목표: 80점)</div>
+          </div>
+          <div style="background: var(--color-surface-muted); padding: 14px; border-radius: 8px; border-top: 3px solid #10b981;">
+            <div style="font-weight: 700; color: #047857; font-size: 0.88rem; margin-bottom: 4px;">🌙 퇴근 / 취침 전 (10분)</div>
+            <div style="font-size: 0.82rem; color: var(--color-text-muted);">당일 롤플레잉 티키타카 대화 훈련 & 체크리스트 완료 확인</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Roadmap Table -->
+      <div class="content-card">
+        <div class="card-header">
+          <h3 class="card-title">📅 D-8 ~ D-Day 커리큘럼 마일스톤 테이블</h3>
+          <span class="card-badge">터치하여 해당 일자 학습</span>
+        </div>
+        <div class="roadmap-table-wrap">
+          <table class="roadmap-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>단계</th>
+                <th>학습 테마</th>
+                <th>핵심 목표 & 실전 미션</th>
+                <th>바로가기</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${curriculumData
+                .map(
+                  (d) => `
+                <tr>
+                  <td><strong style="color: var(--color-primary);">${d.id}</strong></td>
+                  <td>${d.date}</td>
+                  <td><strong>${d.title}</strong></td>
+                  <td style="font-size: 0.82rem;">${d.subtitle || d.description}</td>
+                  <td>
+                    <button class="speed-toggle-btn jump-to-day-btn" data-dayid="${d.id}" style="padding: 4px 10px; font-size: 0.76rem;">
+                      학습하기 👉
+                    </button>
+                  </td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } else {
+    // -----------------------------------------------------------------------
+    // LESSON MODE: 일자별 교재 학습 (상세 교재 본문 + 단어 + 퀴즈)
+    // -----------------------------------------------------------------------
+    html += `
+      <!-- Day Selection Rail -->
+      <div class="day-selector-rail">
+        ${curriculumData
+          .map((d) => {
+            const isSelected = d.id === currentDay.id;
+            return `
+            <button class="day-rail-btn ${isSelected ? 'active' : ''}" data-dayid="${d.id}">
+              <span class="rail-id">${d.id}</span>
+              <span class="rail-sub">${d.date}</span>
+            </button>
+          `;
+          })
+          .join('')}
+      </div>
+
+      <!-- Day Hero Banner -->
+      <div class="day-page-hero">
+        <div class="day-page-hero-top">
+          <span class="day-page-badge">${currentDay.badge}</span>
+          <span style="font-size: 0.8rem; font-weight: 700; opacity: 0.95;">진도율: ${dayDoneTasks}/${dayTotalTasks} (${dayProgress}%)</span>
+        </div>
+        <h2 class="day-page-title">${currentDay.id} • ${currentDay.title}</h2>
+        <p style="font-size: 0.95rem; font-weight: 600; opacity: 0.95; margin-bottom: 6px;">👉 ${currentDay.subtitle || ''}</p>
+        <p class="day-page-sub">${currentDay.description}</p>
+      </div>
+
+      <!-- Section 1: In-depth Textbook Lecture Topics -->
+      ${
+        currentLesson.lecture && currentLesson.lecture.length > 0
+          ? `
+        <div class="lecture-card">
+          <div class="card-header" style="margin-bottom: 12px;">
+            <h3 class="card-title">📖 오늘의 속성 핵심 교재 강의 & 비법</h3>
+            <span class="card-badge">교재 본문</span>
+          </div>
+          <p style="font-size: 0.84rem; color: var(--color-text-muted); margin-bottom: 14px;">
+            💡 <strong>포커스:</strong> ${currentLesson.focus}
+          </p>
           <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${currentDay.dialogue.lines
+            ${currentLesson.lecture
               .map(
-                (line) => `
-              <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-muted); padding: 10px 14px; border-radius: 8px;">
-                <div>
-                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-primary); margin-bottom: 2px;">[${line.speaker}]</div>
-                  <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1rem; color: var(--color-text-main);">${line.jp}</div>
-                  <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">${line.pron}</div>
-                  <div style="font-size: 0.8rem; color: var(--color-text-muted);">${line.ko}</div>
-                </div>
-                <button class="audio-btn" data-audio="${line.jp}">🔊</button>
+                (item) => `
+              <div class="lecture-topic-block">
+                <div class="lecture-topic-title">${item.topic}</div>
+                <div class="lecture-topic-body">${item.content.trim()}</div>
               </div>
             `
               )
               .join('')}
           </div>
         </div>
-      </div>
-    `
-        : ''
-    }
+      `
+          : ''
+      }
 
-    <!-- Section 4: Daily Mini Quiz -->
-    ${
-      currentDay.miniQuiz && currentDay.miniQuiz.length > 0
-        ? `
+      <!-- Section 2: Key Phrases Booster -->
       <div class="content-card">
         <div class="card-header">
-          <h3 class="card-title">📝 오늘의 1분 확인 미니 퀴즈</h3>
-          <span class="card-badge">학습 점검</span>
+          <h3 class="card-title">🔑 오늘 꼭 챙길 핵심 문장 부스터</h3>
+          <span class="card-badge">원터치 오디오</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-          ${currentDay.miniQuiz
-            .map((q, qIdx) => {
-              const quizKey = `${currentDay.id}_${qIdx}`;
-              const answeredIdx = state.miniQuizAnswers[quizKey];
-              const isAnswered = answeredIdx !== undefined;
-
-              return `
-              <div style="border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; background: #ffffff;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                  <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-text-main);">Q${qIdx + 1}. ${q.question}</h4>
-                  ${q.audio ? `<button class="audio-btn" data-audio="${q.audio}" style="width: 28px; height: 28px; font-size: 12px;">🔊</button>` : ''}
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${currentDay.keyPhrases
+            .map(
+              (p) => `
+            <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; transition: all 0.2s ease;">
+              <div style="flex: 1;">
+                <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1.15rem; color: var(--color-text-main); margin-bottom: 2px;">
+                  ${p.jp}
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  ${q.options
-                    .map((opt, optIdx) => {
-                      let btnClass = '';
-                      if (isAnswered) {
-                        if (optIdx === q.answer) btnClass = 'correct';
-                        else if (optIdx === answeredIdx) btnClass = 'wrong';
-                      }
-                      return `
-                      <button class="quiz-option-btn ${btnClass} daily-mini-opt" data-dayid="${currentDay.id}" data-qidx="${qIdx}" data-optidx="${optIdx}" ${isAnswered ? 'disabled' : ''}>
-                        <span>${optIdx + 1}. ${opt}</span>
-                        ${isAnswered && optIdx === q.answer ? '<span>✅</span>' : ''}
-                      </button>
-                    `;
-                    })
-                    .join('')}
+                <div style="font-size: 0.8rem; color: var(--color-text-subtle); margin-bottom: 4px;">
+                  ${p.furigana || ''}
                 </div>
-                ${
-                  isAnswered
-                    ? `
-                  <div style="margin-top: 10px; font-size: 0.82rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 8px 10px; border-radius: 6px;">
-                    💡 <strong>해설:</strong> ${q.explanation}
-                  </div>
-                `
-                    : ''
-                }
+                <div style="font-size: 0.92rem; font-weight: 700; color: var(--color-primary); margin-bottom: 4px;">
+                  ${p.pronounce}
+                </div>
+                <div style="font-size: 0.88rem; font-weight: 600; color: var(--color-text-main); margin-bottom: 4px;">
+                  👉 ${p.ko}
+                </div>
+                <div style="font-size: 0.78rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                  💡 ${p.note}
+                </div>
               </div>
-            `;
-            })
+              <button class="audio-btn" data-audio="${p.audio}" title="발음 듣기">🔊</button>
+            </div>
+          `
+            )
             .join('')}
         </div>
       </div>
-    `
-        : ''
-    }
 
-    <!-- Daily Navigation Bar (이전 날 / 다음 날) -->
-    <div class="daily-nav-bar">
-      <button class="daily-nav-btn" id="btn-prev-day" ${currentIndex === 0 ? 'disabled' : ''}>
-        👈 이전 날 (${currentIndex > 0 ? curriculumData[currentIndex - 1].id : ''})
-      </button>
-      <button class="daily-nav-btn" id="btn-next-day" ${currentIndex >= curriculumData.length - 1 ? 'disabled' : ''} style="background: var(--color-primary); color: white; border-color: var(--color-primary);">
-        다음 날 (${currentIndex < curriculumData.length - 1 ? curriculumData[currentIndex + 1].id : '완료'}) 👉
-      </button>
-    </div>
-  `;
+      <!-- Section 3: Today's Dialogue Simulation -->
+      ${
+        currentDay.dialogue
+          ? `
+        <div class="content-card">
+          <div class="card-header">
+            <h3 class="card-title">💬 오늘의 실전 대화 시뮬레이션</h3>
+            <span class="card-badge">${currentDay.dialogue.title}</span>
+          </div>
+          <div class="daily-dialogue-box">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              ${currentDay.dialogue.lines
+                .map(
+                  (line) => `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-muted); padding: 10px 14px; border-radius: 8px;">
+                  <div>
+                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-primary); margin-bottom: 2px;">[${line.speaker}]</div>
+                    <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1rem; color: var(--color-text-main);">${line.jp}</div>
+                    <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">${line.pron}</div>
+                    <div style="font-size: 0.8rem; color: var(--color-text-muted);">${line.ko}</div>
+                  </div>
+                  <button class="audio-btn" data-audio="${line.jp}">🔊</button>
+                </div>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+        </div>
+      `
+          : ''
+      }
+
+      <!-- Section 4: 3-Step Daily Routine Checklist -->
+      <div class="content-card">
+        <div class="card-header">
+          <h3 class="card-title">⏰ 오늘의 30분 실천 체크리스트</h3>
+          <span class="card-badge">터치하여 완료 체크</span>
+        </div>
+        <div class="routine-section">
+          <div class="routine-phase">
+            <div class="phase-label">☀️ 아침 루틴 (10분 발음 체화)</div>
+            <ul class="routine-list">
+              ${currentDay.routine.morning
+                .map((t, idx) => {
+                  const key = `${currentDay.id}_morning_${idx}`;
+                  const isChecked = !!state.checklist[key];
+                  return `
+                  <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
+                    <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
+                    <span>${t}</span>
+                  </li>
+                `;
+                })
+                .join('')}
+            </ul>
+          </div>
+
+          <div class="routine-phase">
+            <div class="phase-label">🍱 점심 루틴 (10분 단어 & 미니 퀴즈)</div>
+            <ul class="routine-list">
+              ${currentDay.routine.lunch
+                .map((t, idx) => {
+                  const key = `${currentDay.id}_lunch_${idx}`;
+                  const isChecked = !!state.checklist[key];
+                  return `
+                  <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
+                    <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
+                    <span>${t}</span>
+                  </li>
+                `;
+                })
+                .join('')}
+            </ul>
+          </div>
+
+          <div class="routine-phase">
+            <div class="phase-label">🌙 저녁 루틴 (10분 롤플레잉 & 복습)</div>
+            <ul class="routine-list">
+              ${currentDay.routine.night
+                .map((t, idx) => {
+                  const key = `${currentDay.id}_night_${idx}`;
+                  const isChecked = !!state.checklist[key];
+                  return `
+                  <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
+                    <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
+                    <span>${t}</span>
+                  </li>
+                `;
+                })
+                .join('')}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 5: Daily Mini Quiz -->
+      ${
+        currentDay.miniQuiz && currentDay.miniQuiz.length > 0
+          ? `
+        <div class="content-card">
+          <div class="card-header">
+            <h3 class="card-title">📝 오늘의 1분 확인 미니 퀴즈</h3>
+            <span class="card-badge">학습 점검</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            ${currentDay.miniQuiz
+              .map((q, qIdx) => {
+                const quizKey = `${currentDay.id}_${qIdx}`;
+                const answeredIdx = state.miniQuizAnswers[quizKey];
+                const isAnswered = answeredIdx !== undefined;
+
+                return `
+                <div style="border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; background: #ffffff;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-text-main);">Q${qIdx + 1}. ${q.question}</h4>
+                    ${q.audio ? `<button class="audio-btn" data-audio="${q.audio}" style="width: 28px; height: 28px; font-size: 12px;">🔊</button>` : ''}
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${q.options
+                      .map((opt, optIdx) => {
+                        let btnClass = '';
+                        if (isAnswered) {
+                          if (optIdx === q.answer) btnClass = 'correct';
+                          else if (optIdx === answeredIdx) btnClass = 'wrong';
+                        }
+                        return `
+                        <button class="quiz-option-btn ${btnClass} daily-mini-opt" data-dayid="${currentDay.id}" data-qidx="${qIdx}" data-optidx="${optIdx}" ${isAnswered ? 'disabled' : ''}>
+                          <span>${optIdx + 1}. ${opt}</span>
+                          ${isAnswered && optIdx === q.answer ? '<span>✅</span>' : ''}
+                        </button>
+                      `;
+                      })
+                      .join('')}
+                  </div>
+                  ${
+                    isAnswered
+                      ? `
+                    <div style="margin-top: 10px; font-size: 0.82rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 8px 10px; border-radius: 6px;">
+                      💡 <strong>해설:</strong> ${q.explanation}
+                    </div>
+                  `
+                      : ''
+                  }
+                </div>
+              `;
+              })
+              .join('')}
+          </div>
+        </div>
+      `
+          : ''
+      }
+
+      <!-- Daily Navigation Bar (이전 날 / 다음 날) -->
+      <div class="daily-nav-bar">
+        <button class="daily-nav-btn" id="btn-prev-day" ${currentIndex === 0 ? 'disabled' : ''}>
+          👈 이전 날 (${currentIndex > 0 ? curriculumData[currentIndex - 1].id : ''})
+        </button>
+        <button class="daily-nav-btn" id="btn-next-day" ${currentIndex >= curriculumData.length - 1 ? 'disabled' : ''} style="background: var(--color-primary); color: white; border-color: var(--color-primary);">
+          다음 날 (${currentIndex < curriculumData.length - 1 ? curriculumData[currentIndex + 1].id : '완료'}) 👉
+        </button>
+      </div>
+    `;
+  }
 
   container.innerHTML = html;
+
+  // View Mode Switcher Click
+  container.querySelectorAll('.view-mode-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.programViewMode = btn.getAttribute('data-mode');
+      renderDailyProgram(container);
+    });
+  });
+
+  // Jump to Day button (from Roadmap Table)
+  container.querySelectorAll('.jump-to-day-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.selectedDayId = btn.getAttribute('data-dayid');
+      state.programViewMode = 'lesson';
+      renderDailyProgram(container);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
 
   // Rail Button Click
   container.querySelectorAll('.day-rail-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.selectedDayId = btn.getAttribute('data-dayid');
-      renderDailyStudio(container);
+      renderDailyProgram(container);
     });
   });
 
@@ -461,7 +623,7 @@ function renderDailyStudio(container) {
       const key = item.getAttribute('data-key');
       state.checklist[key] = checkbox.checked;
       storage.setChecklist(state.checklist);
-      renderDailyStudio(container);
+      renderDailyProgram(container);
     });
   });
 
@@ -491,7 +653,7 @@ function renderDailyStudio(container) {
       } else {
         showToast('틀렸습니다. 해설을 확인해보세요!');
       }
-      renderDailyStudio(container);
+      renderDailyProgram(container);
     });
   });
 
@@ -501,7 +663,7 @@ function renderDailyStudio(container) {
     prevBtn.addEventListener('click', () => {
       if (currentIndex > 0) {
         state.selectedDayId = curriculumData[currentIndex - 1].id;
-        renderDailyStudio(container);
+        renderDailyProgram(container);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
@@ -512,7 +674,7 @@ function renderDailyStudio(container) {
     nextBtn.addEventListener('click', () => {
       if (currentIndex < curriculumData.length - 1) {
         state.selectedDayId = curriculumData[currentIndex + 1].id;
-        renderDailyStudio(container);
+        renderDailyProgram(container);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
