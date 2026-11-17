@@ -39,7 +39,7 @@ const state = {
   immSelectedChoice: null,
 
   // Daily Studio Mini Quiz State
-  miniQuizAnswers: {}, // key: `${dayId}_${qIdx}` => selected option index
+  miniQuizAnswers: storage.getMiniQuizAnswers(), // key: `${dayId}_${qIdx}` => selected option index
 
   // Pocket Card Fullscreen View State
   pocketCategory: 'all',
@@ -88,6 +88,9 @@ function renderApp() {
           <div class="header-actions">
             <button class="speed-toggle-btn" id="btn-audio-speed" title="발음 재생 속도 조절">
               음성 속도: <strong>${state.audioSpeed}x</strong>
+            </button>
+            <button class="speed-toggle-btn" id="btn-open-backup" title="학습 데이터 백업 및 복원">
+              💾 <strong>데이터 백업/복원</strong>
             </button>
           </div>
         </div>
@@ -142,6 +145,8 @@ function renderApp() {
         <div class="footer-links">
           <a href="https://github.com/naturalkei/jp-study-r1" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub Repository</a>
           <span>•</span>
+          <a href="#" id="link-backup-restore" class="footer-link">데이터 백업/복원</a>
+          <span>•</span>
           <a href="#" id="link-reset-progress" class="footer-link">학습 진도 초기화</a>
         </div>
       </footer>
@@ -173,13 +178,27 @@ function attachHeaderEvents() {
     showToast(`일본어 음성 재생 속도: ${state.audioSpeed}x (${state.audioSpeed === 0.85 ? '학습용 느리게' : '보통 속도'})`);
   });
 
+  document.getElementById('btn-open-backup')?.addEventListener('click', () => {
+    openBackupModal();
+  });
+
+  document.getElementById('link-backup-restore')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openBackupModal();
+  });
+
   document.getElementById('link-reset-progress').addEventListener('click', (e) => {
     e.preventDefault();
     if (confirm('학습 체크리스트와 암기장 완료 상태를 모두 초기화하시겠습니까?')) {
-      localStorage.clear();
+      storage.resetAll();
       state.masteredPhrases = new Set();
       state.checklist = {};
       state.miniQuizAnswers = {};
+      state.audioSpeed = 0.85;
+      const speedBtn = document.getElementById('btn-audio-speed');
+      if (speedBtn) {
+        speedBtn.innerHTML = `음성 속도: <strong>${state.audioSpeed}x</strong>`;
+      }
       renderCurrentTab();
       showToast('학습 진도가 초기화되었습니다.');
     }
@@ -676,6 +695,7 @@ function renderDailyProgram(container) {
 
       if (state.miniQuizAnswers[quizKey] !== undefined) return;
       state.miniQuizAnswers[quizKey] = optIdx;
+      storage.setMiniQuizAnswers(state.miniQuizAnswers);
 
       const q = currentDay.miniQuiz[qIdx];
       if (optIdx === q.answer) {
@@ -2313,6 +2333,9 @@ function renderRoleplay(container) {
       speakJapanese(chosen.text, state.audioSpeed);
       showToast(chosen.feedback);
       state.roleplayStepIndex++;
+      if (state.roleplayStepIndex >= currentScenario.steps.length) {
+        storage.markRoleplayDone(currentScenario.id);
+      }
       renderRoleplay(container);
     });
   });
@@ -2688,6 +2711,338 @@ function renderPocket(container) {
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// 8. LocalStorage Backup & Restore Modal Layer
+// ---------------------------------------------------------------------------
+let isBackupModalInitialized = false;
+
+function setupBackupModalDOM() {
+  if (document.getElementById('backup-modal')) return;
+
+  const modalHtml = `
+    <div id="backup-modal" class="backup-modal-overlay" role="dialog" aria-modal="true" aria-label="학습 데이터 백업 및 복원">
+      <div class="backup-modal-container" id="backup-modal-container">
+        <!-- Header -->
+        <div class="backup-modal-header">
+          <div class="backup-modal-title-wrap">
+            <span class="backup-modal-icon">💾</span>
+            <div>
+              <h2 class="backup-modal-title">학습 데이터 백업 & 불러오기</h2>
+              <p class="backup-modal-desc">브라우저에 저장된 학습 진도를 파일로 내보내거나 기기간 복원할 수 있습니다.</p>
+            </div>
+          </div>
+          <button class="backup-modal-close-btn" id="backup-btn-close" title="닫기 (ESC)">✕</button>
+        </div>
+
+        <div class="backup-modal-body">
+          <!-- Live Storage Status Card -->
+          <div class="backup-card">
+            <div class="backup-card-header">
+              <span class="backup-section-tag">📊 현재 저장된 학습 현황</span>
+              <span class="backup-timestamp" id="backup-current-time"></span>
+            </div>
+            <div class="backup-stats-grid" id="backup-stats-grid"></div>
+          </div>
+
+          <!-- Section 1: 내보내기 (Export) -->
+          <div class="backup-card">
+            <div class="backup-card-header">
+              <span class="backup-section-tag">📤 데이터 내보내기 (백업)</span>
+            </div>
+            <p class="backup-guide-text">
+              지금까지 완료한 체크리스트, 외운 암기 카드, 모의고사 성적을 JSON 파일로 저장하거나 클립보드에 복사해 안전하게 보관하세요.
+            </p>
+            <div class="backup-action-row">
+              <button class="backup-action-btn primary" id="btn-export-download">
+                📥 JSON 파일로 다운로드
+              </button>
+              <button class="backup-action-btn secondary" id="btn-export-clipboard">
+                📋 클립보드에 JSON 복사
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 2: 불러오기 (Import) -->
+          <div class="backup-card">
+            <div class="backup-card-header">
+              <span class="backup-section-tag">📥 데이터 불러오기 (복원)</span>
+            </div>
+            <p class="backup-guide-text">
+              다른 스마트폰이나 PC에서 백업했던 데이터를 불러와 이어서 학습할 수 있습니다.
+            </p>
+
+            <!-- Option A: File Upload -->
+            <div class="backup-import-method">
+              <div class="backup-method-label">방법 1. 백업 JSON 파일 업로드</div>
+              <div class="backup-file-upload-wrap">
+                <input type="file" id="backup-file-input" accept=".json,application/json" style="display: none;" />
+                <button class="backup-action-btn secondary" id="btn-trigger-file-input">
+                  📁 백업 파일 선택 (.json)
+                </button>
+                <span class="backup-file-name" id="backup-file-name">선택된 파일 없음</span>
+              </div>
+            </div>
+
+            <!-- Option B: Text Paste -->
+            <div class="backup-import-method">
+              <div class="backup-method-label">방법 2. 복사한 JSON 텍스트 직접 붙여넣기</div>
+              <textarea
+                id="backup-paste-input"
+                class="backup-textarea"
+                rows="3"
+                placeholder="클립보드에 복사한 백업 JSON 텍스트를 여기에 붙여넣으세요..."
+              ></textarea>
+              <div style="margin-top: 8px;">
+                <button class="backup-action-btn warning" id="btn-import-paste">
+                  🔄 붙여넣은 데이터로 복원하기
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Reset Zone -->
+          <div class="backup-card danger-zone">
+            <div class="backup-card-header">
+              <span class="backup-section-tag danger">⚠️ 데이터 전체 초기화</span>
+            </div>
+            <p class="backup-guide-text">
+              이 브라우저에 저장된 모든 학습 데이터(체크리스트, 암기 카드, 테스트 기록)를 영구 삭제합니다.
+            </p>
+            <button class="backup-action-btn danger" id="btn-modal-reset-all">
+              🗑️ 모든 학습 데이터 완전 초기화
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  attachBackupModalEvents();
+  isBackupModalInitialized = true;
+}
+
+function updateBackupStats() {
+  const exportPayload = storage.exportData();
+  const summary = exportPayload.summary;
+  const timeElem = document.getElementById('backup-current-time');
+  if (timeElem) {
+    timeElem.textContent = `기준: ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  }
+
+  const grid = document.getElementById('backup-stats-grid');
+  if (grid) {
+    grid.innerHTML = `
+      <div class="backup-stat-item">
+        <span class="stat-icon">✅</span>
+        <span class="stat-val">${summary.checklistItemsCount}개</span>
+        <span class="stat-lbl">체크리스트 완료</span>
+      </div>
+      <div class="backup-stat-item">
+        <span class="stat-icon">🗂️</span>
+        <span class="stat-val">${summary.masteredPhrasesCount}개</span>
+        <span class="stat-lbl">외운 암기 카드</span>
+      </div>
+      <div class="backup-stat-item">
+        <span class="stat-icon">📝</span>
+        <span class="stat-val">${summary.quizHistoryCount}회</span>
+        <span class="stat-lbl">모의고사 응시</span>
+      </div>
+      <div class="backup-stat-item">
+        <span class="stat-icon">🎭</span>
+        <span class="stat-val">${summary.roleplayDoneCount}개</span>
+        <span class="stat-lbl">롤플레잉 완료</span>
+      </div>
+      <div class="backup-stat-item">
+        <span class="stat-icon">💡</span>
+        <span class="stat-val">${summary.miniQuizCount}개</span>
+        <span class="stat-lbl">미니퀴즈 풀이</span>
+      </div>
+    `;
+  }
+}
+
+function openBackupModal() {
+  setupBackupModalDOM();
+  updateBackupStats();
+  const modal = document.getElementById('backup-modal');
+  if (modal) {
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeBackupModal() {
+  const modal = document.getElementById('backup-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
+
+function executeImport(parsedJson) {
+  try {
+    storage.importData(parsedJson);
+    state.checklist = storage.getChecklist();
+    state.masteredPhrases = new Set(storage.getMasteredPhrases());
+    state.miniQuizAnswers = storage.getMiniQuizAnswers();
+    state.audioSpeed = storage.getAudioSpeed();
+
+    const speedBtn = document.getElementById('btn-audio-speed');
+    if (speedBtn) {
+      speedBtn.innerHTML = `음성 속도: <strong>${state.audioSpeed}x</strong>`;
+    }
+
+    updateBackupStats();
+    renderCurrentTab();
+    showToast('🎉 학습 데이터가 성공적으로 복원되었습니다!');
+  } catch (err) {
+    alert(`복원 실패: ${err.message}`);
+  }
+}
+
+function attachBackupModalEvents() {
+  const modal = document.getElementById('backup-modal');
+  if (!modal) return;
+
+  // Close handlers
+  document.getElementById('backup-btn-close')?.addEventListener('click', closeBackupModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeBackupModal();
+  });
+
+  // Export: Download
+  document.getElementById('btn-export-download')?.addEventListener('click', () => {
+    const data = storage.exportData();
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const filename = `jp-study-backup-${dateStr}.json`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`📁 ${filename} 다운로드 완료!`);
+  });
+
+  // Export: Clipboard
+  document.getElementById('btn-export-clipboard')?.addEventListener('click', async () => {
+    const data = storage.exportData();
+    const jsonString = JSON.stringify(data, null, 2);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(jsonString);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = jsonString;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      showToast('📋 백업 데이터가 클립보드에 복사되었습니다!');
+    } catch (err) {
+      console.error('Clipboard copy error:', err);
+      showToast('클립보드 복사 실패. 다운로드 기능을 이용해주세요.');
+    }
+  });
+
+  // Import: File Trigger & Handle
+  const fileInput = document.getElementById('backup-file-input');
+  const triggerBtn = document.getElementById('btn-trigger-file-input');
+  if (triggerBtn && fileInput) {
+    triggerBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const fileNameElem = document.getElementById('backup-file-name');
+      if (fileNameElem) fileNameElem.textContent = file.name;
+
+      if (!confirm(`선택한 파일 [${file.name}]의 데이터로 현재 학습 진도를 복원하시겠습니까? 기존 데이터는 덮어씌워집니다.`)) {
+        fileInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          executeImport(parsed);
+        } catch (parseErr) {
+          alert('파일을 읽거나 JSON을 파싱하는 중 오류가 발생했습니다: ' + parseErr.message);
+        } finally {
+          fileInput.value = '';
+        }
+      };
+      reader.onerror = () => {
+        alert('파일 읽기 오류가 발생했습니다.');
+        fileInput.value = '';
+      };
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  // Import: Paste
+  document.getElementById('btn-import-paste')?.addEventListener('click', () => {
+    const textarea = document.getElementById('backup-paste-input');
+    const text = textarea ? textarea.value.trim() : '';
+    if (!text) {
+      alert('붙여넣을 JSON 데이터를 입력해주세요.');
+      return;
+    }
+
+    if (!confirm('입력한 JSON 데이터로 현재 학습 진도를 복원하시겠습니까? 기존 데이터는 덮어씌워집니다.')) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      executeImport(parsed);
+      textarea.value = '';
+    } catch (parseErr) {
+      alert('유효한 JSON 텍스트 형식이 아닙니다: ' + parseErr.message);
+    }
+  });
+
+  // Reset from modal
+  document.getElementById('btn-modal-reset-all')?.addEventListener('click', () => {
+    if (confirm('정말로 모든 학습 진도와 설정을 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      storage.resetAll();
+      state.checklist = {};
+      state.masteredPhrases = new Set();
+      state.miniQuizAnswers = {};
+      state.audioSpeed = 0.85;
+
+      const speedBtn = document.getElementById('btn-audio-speed');
+      if (speedBtn) {
+        speedBtn.innerHTML = `음성 속도: <strong>${state.audioSpeed}x</strong>`;
+      }
+
+      updateBackupStats();
+      renderCurrentTab();
+      showToast('학습 데이터가 모두 초기화되었습니다.');
+    }
+  });
+}
+
+// Global ESC key listener for modals
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const backupModal = document.getElementById('backup-modal');
+    if (backupModal && backupModal.classList.contains('active')) {
+      closeBackupModal();
+    }
+  }
+});
 
 // Start application
 renderApp();
