@@ -4,25 +4,37 @@ import { cheatsheetData } from './data/cheatsheet.js';
 import { phrasesData } from './data/phrases.js';
 import { quizQuestions } from './data/quizzes.js';
 import { roleplayScenarios } from './data/roleplay.js';
+import { immigrationData } from './data/immigration.js';
 import { initSpeech, speakJapanese } from './utils/speech.js';
 import { storage } from './utils/storage.js';
 
 // Application State
 const state = {
-  currentTab: 'milestones',
+  currentTab: 'daily-studio',
+  selectedDayId: 'D-8',
   flashcardCategory: 'all',
   masteredPhrases: new Set(storage.getMasteredPhrases()),
   checklist: storage.getChecklist(),
   audioSpeed: storage.getAudioSpeed(),
-  // Quiz state
+
+  // Comprehensive Quiz State
   quizIndex: 0,
   quizScore: 0,
   selectedAnswer: null,
   quizFinished: false,
-  // Roleplay state
+
+  // Roleplay State
   activeRoleplayId: roleplayScenarios[0].id,
   roleplayStepIndex: 0,
   roleplayLogs: [],
+
+  // Immigration Simulation State
+  immStepIndex: 0,
+  immLogs: [],
+  immSelectedChoice: null,
+
+  // Daily Studio Mini Quiz State
+  miniQuizAnswers: {}, // key: `${dayId}_${qIdx}` => selected option index
 };
 
 // Initialize Speech System
@@ -76,8 +88,11 @@ function renderApp() {
       </header>
 
       <nav class="nav-tabs" id="nav-tabs">
-        <button class="tab-btn ${state.currentTab === 'milestones' ? 'active' : ''}" data-tab="milestones">
-          📅 데일리 마일스톤
+        <button class="tab-btn ${state.currentTab === 'daily-studio' ? 'active' : ''}" data-tab="daily-studio">
+          📅 일자별 학습실
+        </button>
+        <button class="tab-btn ${state.currentTab === 'immigration' ? 'active' : ''}" data-tab="immigration">
+          ✈️ 공항 입출국심사
         </button>
         <button class="tab-btn ${state.currentTab === 'cheatsheet' ? 'active' : ''}" data-tab="cheatsheet">
           ⚡ 1초 치트시트
@@ -86,10 +101,10 @@ function renderApp() {
           🗂️ 플래시 암기장
         </button>
         <button class="tab-btn ${state.currentTab === 'test' ? 'active' : ''}" data-tab="test">
-          📝 실전 데일리 테스트
+          📝 종합 실전 테스트
         </button>
         <button class="tab-btn ${state.currentTab === 'roleplay' ? 'active' : ''}" data-tab="roleplay">
-          🎭 롤플레잉 시뮬레이션
+          🎭 롤플레잉
         </button>
         <button class="tab-btn ${state.currentTab === 'pocket' ? 'active' : ''}" data-tab="pocket">
           🎒 여행자 포켓 카드
@@ -97,7 +112,7 @@ function renderApp() {
       </nav>
 
       <main class="app-content" id="app-content">
-        <!-- Tab Content dynamically injected here -->
+        <!-- Content Area -->
       </main>
 
       <footer class="app-footer">
@@ -116,7 +131,6 @@ function renderApp() {
 }
 
 function attachHeaderEvents() {
-  // Tab click
   document.getElementById('nav-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.tab-btn');
     if (!btn) return;
@@ -129,7 +143,6 @@ function attachHeaderEvents() {
     }
   });
 
-  // Audio speed toggle
   document.getElementById('btn-audio-speed').addEventListener('click', () => {
     state.audioSpeed = state.audioSpeed === 0.85 ? 1.0 : 0.85;
     storage.setAudioSpeed(state.audioSpeed);
@@ -137,13 +150,13 @@ function attachHeaderEvents() {
     showToast(`일본어 음성 재생 속도: ${state.audioSpeed}x (${state.audioSpeed === 0.85 ? '학습용 느리게' : '보통 속도'})`);
   });
 
-  // Reset Progress
   document.getElementById('link-reset-progress').addEventListener('click', (e) => {
     e.preventDefault();
     if (confirm('학습 체크리스트와 암기장 완료 상태를 모두 초기화하시겠습니까?')) {
       localStorage.clear();
       state.masteredPhrases = new Set();
       state.checklist = {};
+      state.miniQuizAnswers = {};
       renderCurrentTab();
       showToast('학습 진도가 초기화되었습니다.');
     }
@@ -155,8 +168,11 @@ function renderCurrentTab() {
   if (!container) return;
 
   switch (state.currentTab) {
-    case 'milestones':
-      renderMilestones(container);
+    case 'daily-studio':
+      renderDailyStudio(container);
+      break;
+    case 'immigration':
+      renderImmigrationClinic(container);
       break;
     case 'cheatsheet':
       renderCheatsheet(container);
@@ -174,126 +190,177 @@ function renderCurrentTab() {
       renderPocket(container);
       break;
     default:
-      renderMilestones(container);
+      renderDailyStudio(container);
   }
 }
 
 // ---------------------------------------------------------------------------
-// 1. Milestones Tab
+// 1. Dedicated Daily Studio (일자별 전용 학습 페이지)
 // ---------------------------------------------------------------------------
-function renderMilestones(container) {
+function renderDailyStudio(container) {
+  const currentDay = curriculumData.find((d) => d.id === state.selectedDayId) || curriculumData[0];
+  const currentIndex = curriculumData.findIndex((d) => d.id === currentDay.id);
+
+  // Calculate day completion
   let totalTasks = 0;
   let doneTasks = 0;
-
-  curriculumData.forEach((day) => {
-    ['morning', 'lunch', 'night'].forEach((phase) => {
-      day.routine[phase].forEach((_, idx) => {
-        totalTasks++;
-        const key = `${day.id}_${phase}_${idx}`;
-        if (state.checklist[key]) doneTasks++;
-      });
+  ['morning', 'lunch', 'night'].forEach((phase) => {
+    currentDay.routine[phase].forEach((_, idx) => {
+      totalTasks++;
+      const key = `${currentDay.id}_${phase}_${idx}`;
+      if (state.checklist[key]) doneTasks++;
     });
   });
-
-  const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  const dayProgress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   let html = `
-    <div class="content-card" style="background: linear-gradient(to right, #ffffff, #f8fafc); border-left: 4px solid var(--color-primary);">
-      <div class="card-header" style="margin-bottom: 8px;">
-        <h2 class="card-title">📍 D-8 ~ D-Day 학습 마일스톤 달성률</h2>
-        <span class="card-badge">${doneTasks} / ${totalTasks} 완료 (${progressPercent}%)</span>
+    <!-- Day Selection Rail -->
+    <div class="day-selector-rail">
+      ${curriculumData
+        .map((d) => {
+          const isSelected = d.id === currentDay.id;
+          return `
+          <button class="day-rail-btn ${isSelected ? 'active' : ''}" data-dayid="${d.id}">
+            <span class="rail-id">${d.id}</span>
+            <span class="rail-sub">${d.date}</span>
+          </button>
+        `;
+        })
+        .join('')}
+    </div>
+
+    <!-- Day Hero Banner -->
+    <div class="day-page-hero">
+      <div class="day-page-hero-top">
+        <span class="day-page-badge">${currentDay.badge}</span>
+        <span style="font-size: 0.8rem; font-weight: 700; opacity: 0.95;">진도율: ${doneTasks}/${totalTasks} (${dayProgress}%)</span>
       </div>
-      <div style="background: #e2e8f0; height: 8px; border-radius: 9999px; overflow: hidden; margin-top: 6px;">
-        <div style="background: var(--color-primary); height: 100%; width: ${progressPercent}%; transition: width 0.3s ease;"></div>
+      <h2 class="day-page-title">${currentDay.title}</h2>
+      <p style="font-size: 0.95rem; font-weight: 600; opacity: 0.95; margin-bottom: 6px;">👉 ${currentDay.subtitle || ''}</p>
+      <p class="day-page-sub">${currentDay.description}</p>
+    </div>
+
+    <!-- Section 1: 3-Step Daily Routine -->
+    <div class="content-card">
+      <div class="card-header">
+        <h3 class="card-title">⏰ 오늘의 30분 데일리 실천 루틴</h3>
+        <span class="card-badge">터치하여 완료 체크</span>
+      </div>
+      <div class="routine-section">
+        <div class="routine-phase">
+          <div class="phase-label">☀️ 아침 루틴 (10분 발음 체화)</div>
+          <ul class="routine-list">
+            ${currentDay.routine.morning
+              .map((t, idx) => {
+                const key = `${currentDay.id}_morning_${idx}`;
+                const isChecked = !!state.checklist[key];
+                return `
+                <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
+                  <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
+                  <span>${t}</span>
+                </li>
+              `;
+              })
+              .join('')}
+          </ul>
+        </div>
+
+        <div class="routine-phase">
+          <div class="phase-label">🍱 점심 루틴 (10분 단어 & 미니 퀴즈)</div>
+          <ul class="routine-list">
+            ${currentDay.routine.lunch
+              .map((t, idx) => {
+                const key = `${currentDay.id}_lunch_${idx}`;
+                const isChecked = !!state.checklist[key];
+                return `
+                <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
+                  <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
+                  <span>${t}</span>
+                </li>
+              `;
+              })
+              .join('')}
+          </ul>
+        </div>
+
+        <div class="routine-phase">
+          <div class="phase-label">🌙 저녁 루틴 (10분 롤플레잉 & 복습)</div>
+          <ul class="routine-list">
+            ${currentDay.routine.night
+              .map((t, idx) => {
+                const key = `${currentDay.id}_night_${idx}`;
+                const isChecked = !!state.checklist[key];
+                return `
+                <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
+                  <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
+                  <span>${t}</span>
+                </li>
+              `;
+              })
+              .join('')}
+          </ul>
+        </div>
       </div>
     </div>
-  `;
 
-  html += curriculumData
-    .map((day) => {
-      return `
-      <div class="milestone-day-card">
-        <div class="milestone-header">
-          <div class="day-badge-title">
-            <span class="day-badge">${day.id}</span>
-            <div>
-              <h3 class="day-title">${day.title}</h3>
-              <p class="day-date">${day.date} • ${day.badge}</p>
+    <!-- Section 2: Key Phrases Booster -->
+    <div class="content-card">
+      <div class="card-header">
+        <h3 class="card-title">🔑 오늘 꼭 챙길 핵심 문장</h3>
+        <span class="card-badge">원터치 오디오</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        ${currentDay.keyPhrases
+          .map(
+            (p) => `
+          <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; transition: all 0.2s ease;">
+            <div style="flex: 1;">
+              <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1.15rem; color: var(--color-text-main); margin-bottom: 2px;">
+                ${p.jp}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--color-text-subtle); margin-bottom: 4px;">
+                ${p.furigana || ''}
+              </div>
+              <div style="font-size: 0.92rem; font-weight: 700; color: var(--color-primary); margin-bottom: 4px;">
+                ${p.pronounce}
+              </div>
+              <div style="font-size: 0.88rem; font-weight: 600; color: var(--color-text-main); margin-bottom: 4px;">
+                👉 ${p.ko}
+              </div>
+              <div style="font-size: 0.78rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                💡 ${p.note}
+              </div>
             </div>
+            <button class="audio-btn" data-audio="${p.audio}" title="발음 듣기">🔊</button>
           </div>
+        `
+          )
+          .join('')}
+      </div>
+    </div>
+
+    <!-- Section 3: Today's Dialogue Simulation -->
+    ${
+      currentDay.dialogue
+        ? `
+      <div class="content-card">
+        <div class="card-header">
+          <h3 class="card-title">💬 오늘의 실전 대화 시뮬레이션</h3>
+          <span class="card-badge">${currentDay.dialogue.title}</span>
         </div>
-        <p style="font-size: 0.88rem; color: var(--color-text-muted); margin-bottom: 14px;">${day.description}</p>
-
-        <!-- 3-Step Daily Routine -->
-        <div class="routine-section">
-          <div class="routine-phase">
-            <div class="phase-label">☀️ 아침 루틴 (10분 소리 내기)</div>
-            <ul class="routine-list">
-              ${day.routine.morning
-                .map((task, idx) => {
-                  const key = `${day.id}_morning_${idx}`;
-                  const isChecked = !!state.checklist[key];
-                  return `
-                  <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
-                    <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
-                    <span>${task}</span>
-                  </li>
-                `;
-                })
-                .join('')}
-            </ul>
-          </div>
-
-          <div class="routine-phase">
-            <div class="phase-label">🍱 점심 루틴 (10분 퀴즈 & 단어)</div>
-            <ul class="routine-list">
-              ${day.routine.lunch
-                .map((task, idx) => {
-                  const key = `${day.id}_lunch_${idx}`;
-                  const isChecked = !!state.checklist[key];
-                  return `
-                  <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
-                    <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
-                    <span>${task}</span>
-                  </li>
-                `;
-                })
-                .join('')}
-            </ul>
-          </div>
-
-          <div class="routine-phase">
-            <div class="phase-label">🌙 저녁 루틴 (10분 롤플레잉 & 복습)</div>
-            <ul class="routine-list">
-              ${day.routine.night
-                .map((task, idx) => {
-                  const key = `${day.id}_night_${idx}`;
-                  const isChecked = !!state.checklist[key];
-                  return `
-                  <li class="routine-item ${isChecked ? 'done' : ''}" data-key="${key}">
-                    <input type="checkbox" class="routine-checkbox" ${isChecked ? 'checked' : ''} />
-                    <span>${task}</span>
-                  </li>
-                `;
-                })
-                .join('')}
-            </ul>
-          </div>
-        </div>
-
-        <!-- Key Phrases for the day -->
-        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--color-border);">
-          <div style="font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 8px;">🔑 오늘 꼭 챙길 핵심 한마디</div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${day.keyPhrases
+        <div class="daily-dialogue-box">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${currentDay.dialogue.lines
               .map(
-                (p) => `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px 12px;">
+                (line) => `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-muted); padding: 10px 14px; border-radius: 8px;">
                 <div>
-                  <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.95rem; color: var(--color-text-main);">${p.jp}</div>
-                  <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-primary);">${p.pronounce} • <span style="color: var(--color-text-muted); font-weight: 400;">${p.ko}</span></div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-primary); margin-bottom: 2px;">[${line.speaker}]</div>
+                  <div style="font-family: var(--font-jp); font-weight: 700; font-size: 1rem; color: var(--color-text-main);">${line.jp}</div>
+                  <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">${line.pron}</div>
+                  <div style="font-size: 0.8rem; color: var(--color-text-muted);">${line.ko}</div>
                 </div>
-                <button class="audio-btn" data-audio="${p.audio}" title="일본어 발음 듣기">🔊</button>
+                <button class="audio-btn" data-audio="${line.jp}">🔊</button>
               </div>
             `
               )
@@ -301,13 +368,90 @@ function renderMilestones(container) {
           </div>
         </div>
       </div>
-    `;
-    })
-    .join('');
+    `
+        : ''
+    }
+
+    <!-- Section 4: Daily Mini Quiz -->
+    ${
+      currentDay.miniQuiz && currentDay.miniQuiz.length > 0
+        ? `
+      <div class="content-card">
+        <div class="card-header">
+          <h3 class="card-title">📝 오늘의 1분 확인 미니 퀴즈</h3>
+          <span class="card-badge">학습 점검</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          ${currentDay.miniQuiz
+            .map((q, qIdx) => {
+              const quizKey = `${currentDay.id}_${qIdx}`;
+              const answeredIdx = state.miniQuizAnswers[quizKey];
+              const isAnswered = answeredIdx !== undefined;
+
+              return `
+              <div style="border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; background: #ffffff;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                  <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-text-main);">Q${qIdx + 1}. ${q.question}</h4>
+                  ${q.audio ? `<button class="audio-btn" data-audio="${q.audio}" style="width: 28px; height: 28px; font-size: 12px;">🔊</button>` : ''}
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  ${q.options
+                    .map((opt, optIdx) => {
+                      let btnClass = '';
+                      if (isAnswered) {
+                        if (optIdx === q.answer) btnClass = 'correct';
+                        else if (optIdx === answeredIdx) btnClass = 'wrong';
+                      }
+                      return `
+                      <button class="quiz-option-btn ${btnClass} daily-mini-opt" data-dayid="${currentDay.id}" data-qidx="${qIdx}" data-optidx="${optIdx}" ${isAnswered ? 'disabled' : ''}>
+                        <span>${optIdx + 1}. ${opt}</span>
+                        ${isAnswered && optIdx === q.answer ? '<span>✅</span>' : ''}
+                      </button>
+                    `;
+                    })
+                    .join('')}
+                </div>
+                ${
+                  isAnswered
+                    ? `
+                  <div style="margin-top: 10px; font-size: 0.82rem; color: var(--color-text-muted); background: var(--color-surface-muted); padding: 8px 10px; border-radius: 6px;">
+                    💡 <strong>해설:</strong> ${q.explanation}
+                  </div>
+                `
+                    : ''
+                }
+              </div>
+            `;
+            })
+            .join('')}
+        </div>
+      </div>
+    `
+        : ''
+    }
+
+    <!-- Daily Navigation Bar (이전 날 / 다음 날) -->
+    <div class="daily-nav-bar">
+      <button class="daily-nav-btn" id="btn-prev-day" ${currentIndex === 0 ? 'disabled' : ''}>
+        👈 이전 날 (${currentIndex > 0 ? curriculumData[currentIndex - 1].id : ''})
+      </button>
+      <button class="daily-nav-btn" id="btn-next-day" ${currentIndex >= curriculumData.length - 1 ? 'disabled' : ''} style="background: var(--color-primary); color: white; border-color: var(--color-primary);">
+        다음 날 (${currentIndex < curriculumData.length - 1 ? curriculumData[currentIndex + 1].id : '완료'}) 👉
+      </button>
+    </div>
+  `;
 
   container.innerHTML = html;
 
-  // Events
+  // Rail Button Click
+  container.querySelectorAll('.day-rail-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.selectedDayId = btn.getAttribute('data-dayid');
+      renderDailyStudio(container);
+    });
+  });
+
+  // Routine Checklist Toggle
   container.querySelectorAll('.routine-item').forEach((item) => {
     item.addEventListener('click', (e) => {
       const checkbox = item.querySelector('.routine-checkbox');
@@ -317,10 +461,11 @@ function renderMilestones(container) {
       const key = item.getAttribute('data-key');
       state.checklist[key] = checkbox.checked;
       storage.setChecklist(state.checklist);
-      renderMilestones(container);
+      renderDailyStudio(container);
     });
   });
 
+  // Audio Buttons
   container.querySelectorAll('.audio-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -328,10 +473,275 @@ function renderMilestones(container) {
       if (text) speakJapanese(text, state.audioSpeed);
     });
   });
+
+  // Mini Quiz Answer Click
+  container.querySelectorAll('.daily-mini-opt').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const dayId = btn.getAttribute('data-dayid');
+      const qIdx = parseInt(btn.getAttribute('data-qidx'), 10);
+      const optIdx = parseInt(btn.getAttribute('data-optidx'), 10);
+      const quizKey = `${dayId}_${qIdx}`;
+
+      if (state.miniQuizAnswers[quizKey] !== undefined) return;
+      state.miniQuizAnswers[quizKey] = optIdx;
+
+      const q = currentDay.miniQuiz[qIdx];
+      if (optIdx === q.answer) {
+        showToast('정답입니다! 🎉');
+      } else {
+        showToast('틀렸습니다. 해설을 확인해보세요!');
+      }
+      renderDailyStudio(container);
+    });
+  });
+
+  // Prev / Next Navigation
+  const prevBtn = document.getElementById('btn-prev-day');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      if (currentIndex > 0) {
+        state.selectedDayId = curriculumData[currentIndex - 1].id;
+        renderDailyStudio(container);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  }
+
+  const nextBtn = document.getElementById('btn-next-day');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex < curriculumData.length - 1) {
+        state.selectedDayId = curriculumData[currentIndex + 1].id;
+        renderDailyStudio(container);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
-// 2. Cheat Sheet Tab
+// 2. Immigration & Customs Clinic Tab (공항 입출국심사 특강)
+// ---------------------------------------------------------------------------
+function renderImmigrationClinic(container) {
+  let html = `
+    <!-- Clinic Header -->
+    <div class="content-card" style="background: linear-gradient(135deg, #1e3a8a, #0f172a); color: white; border: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span class="day-page-badge">공항 프리패스 특강</span>
+        <span style="font-size: 0.8rem; opacity: 0.9;">나리타 공항 입국 & 귀국 대비</span>
+      </div>
+      <h2 style="font-size: 1.4rem; font-weight: 800; margin-bottom: 8px;">${immigrationData.overview.title}</h2>
+      <p style="font-size: 0.88rem; opacity: 0.9; margin-bottom: 12px;">${immigrationData.overview.description}</p>
+      <div style="background: rgba(255, 255, 255, 0.15); padding: 8px 12px; border-radius: 8px; font-size: 0.82rem;">
+        💡 <strong>${immigrationData.overview.passRule}</strong>
+      </div>
+    </div>
+
+    <!-- Section 1 & 2 & 3 Inspection QA Guides -->
+    ${immigrationData.sections
+      .map(
+        (sec) => `
+      <div class="immigration-card">
+        <div class="card-header" style="margin-bottom: 8px;">
+          <h3 class="card-title">${sec.title}</h3>
+          <span class="card-badge">${sec.badge}</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 14px;">${sec.description}</p>
+
+        <!-- Machine Guidance (Audio) -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--color-primary); margin-bottom: 8px;">
+            📢 기계 및 심사관 음성 안내 (귀로 익히기)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${sec.machineGuidance
+              .map(
+                (m) => `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px;">
+                <div>
+                  <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.92rem; color: var(--color-text-main);">${m.jp}</div>
+                  <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-primary);">${m.pron}</div>
+                  <div style="font-size: 0.78rem; color: var(--color-text-muted);">${m.ko}</div>
+                </div>
+                <button class="audio-btn" data-audio="${m.audio}">🔊</button>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+
+        <!-- QA Pairs -->
+        <div>
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--color-accent); margin-bottom: 8px;">
+            💬 심사관의 핵심 질문 & 0.1초 모범 답변
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${sec.qaPairs
+              .map(
+                (qa) => `
+              <div class="qa-item-wrap">
+                <div class="qa-q-row">
+                  <div>
+                    <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-accent); margin-bottom: 2px;">[심사관 질문]</div>
+                    <div class="qa-q-text">${qa.q_jp}</div>
+                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted);">${qa.q_pron} • ${qa.q_ko}</div>
+                  </div>
+                  <button class="audio-btn" data-audio="${qa.audio_q}">🔊</button>
+                </div>
+                <div class="qa-a-row">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-primary); margin-bottom: 2px;">[나의 0.1초 답변]</div>
+                      <div class="qa-a-text">${qa.a_jp}</div>
+                      <div style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">${qa.a_pron} • ${qa.a_ko}</div>
+                    </div>
+                    <button class="audio-btn" data-audio="${qa.audio_a}">🔊</button>
+                  </div>
+                  <div class="qa-tip-badge">💡 <strong>Tip:</strong> ${qa.tip}</div>
+                </div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      </div>
+    `
+      )
+      .join('')}
+
+    <!-- Interactive Immigration Simulation Dialogue -->
+    <div class="content-card">
+      <div class="card-header">
+        <h3 class="card-title">🛂 실전 입국심사대 시뮬레이션 게임</h3>
+        <button class="speed-toggle-btn" id="btn-reset-imm-sim">처음부터</button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 16px;">
+        심사관의 질문에 알맞은 답변을 선택해보세요! (틀린 답변을 고르면 심사가 길어집니다)
+      </p>
+
+      <div class="chat-window">
+        ${state.immLogs
+          .map(
+            (log) => `
+          <div class="chat-bubble ${log.speaker}">
+            <div class="chat-bubble-speaker">${log.speaker === 'staff' ? '입국심사관' : '나'}</div>
+            <div class="chat-jp-text">${log.text}</div>
+            <div class="chat-ko-sub">${log.ko}</div>
+          </div>
+        `
+          )
+          .join('')}
+
+        ${
+          state.immStepIndex < immigrationData.dialogueSimulation.length
+            ? `
+          <div class="chat-bubble staff">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <div class="chat-bubble-speaker">입국심사관</div>
+              <button class="audio-btn" data-audio="${immigrationData.dialogueSimulation[state.immStepIndex].officer}" style="width: 26px; height: 26px; font-size: 12px;">🔊</button>
+            </div>
+            <div class="chat-jp-text">${immigrationData.dialogueSimulation[state.immStepIndex].officer}</div>
+            <div style="font-size: 0.8rem; color: var(--color-primary); font-weight: 600;">${immigrationData.dialogueSimulation[state.immStepIndex].officerPron}</div>
+            <div class="chat-ko-sub">${immigrationData.dialogueSimulation[state.immStepIndex].officerKo}</div>
+          </div>
+        `
+            : `
+          <div style="text-align: center; padding: 20px; background: var(--color-success-light); border-radius: var(--radius-md); border: 1px solid var(--color-success);">
+            <div style="font-size: 40px; margin-bottom: 6px;">🎉 🇯🇵</div>
+            <h4 style="font-size: 1.15rem; font-weight: 800; color: var(--color-success); margin-bottom: 4px;">입국 심사 통과!</h4>
+            <p style="font-size: 0.85rem; color: var(--color-text-main);">
+              심사관이 도장을 쾅 찍어주었습니다! 이제 수하물을 찾고 가와구치코로 출발할 준비가 완료되었습니다.
+            </p>
+          </div>
+        `
+        }
+      </div>
+
+      <!-- Choice Options -->
+      ${
+        state.immStepIndex < immigrationData.dialogueSimulation.length
+          ? `
+        <div style="margin-top: 16px; border-top: 1px solid var(--color-border); padding-top: 14px;">
+          <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 8px;">
+            선택지를 터치하여 답변하세요:
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${immigrationData.dialogueSimulation[state.immStepIndex].options
+              .map(
+                (opt, optIdx) => `
+              <button class="quiz-option-btn imm-choice-btn" data-idx="${optIdx}">
+                <div>
+                  <div style="font-family: var(--font-jp); font-weight: 700; font-size: 0.95rem;">${opt.text}</div>
+                  <div style="font-size: 0.8rem; font-weight: 600; color: var(--color-primary);">${opt.pron}</div>
+                  <div style="font-size: 0.78rem; color: var(--color-text-muted);">${opt.ko}</div>
+                </div>
+              </button>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      `
+          : ''
+      }
+    </div>
+  `;
+
+  container.innerHTML = html;
+
+  // Audio Play
+  container.querySelectorAll('.audio-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = btn.getAttribute('data-audio');
+      if (text) speakJapanese(text, state.audioSpeed);
+    });
+  });
+
+  // Reset Simulation
+  const resetBtn = document.getElementById('btn-reset-imm-sim');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      state.immStepIndex = 0;
+      state.immLogs = [];
+      renderImmigrationClinic(container);
+    });
+  }
+
+  // Simulation Choice Click
+  container.querySelectorAll('.imm-choice-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      const currentStep = immigrationData.dialogueSimulation[state.immStepIndex];
+      const chosen = currentStep.options[idx];
+
+      // Append officer text to logs
+      state.immLogs.push({
+        speaker: 'staff',
+        text: currentStep.officer,
+        ko: currentStep.officerKo,
+      });
+
+      // Append user text to logs
+      state.immLogs.push({
+        speaker: 'user',
+        text: chosen.text,
+        ko: chosen.ko,
+      });
+
+      speakJapanese(chosen.text, state.audioSpeed);
+      showToast(chosen.feedback);
+
+      state.immStepIndex++;
+      renderImmigrationClinic(container);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 3. Cheat Sheet Tab
 // ---------------------------------------------------------------------------
 function renderCheatsheet(container) {
   let html = `
@@ -480,7 +890,7 @@ function renderCheatsheet(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Flashcards Tab
+// 4. Flashcards Tab
 // ---------------------------------------------------------------------------
 function renderFlashcards(container) {
   const filteredPhrases = phrasesData.filter((p) => {
@@ -504,6 +914,7 @@ function renderFlashcards(container) {
     <!-- Filter Categories -->
     <div class="filter-tabs">
       <button class="filter-btn ${state.flashcardCategory === 'all' ? 'active' : ''}" data-cat="all">전체 (${phrasesData.length})</button>
+      <button class="filter-btn ${state.flashcardCategory === 'immigration' ? 'active' : ''}" data-cat="immigration">✈️ 입출국 & 세관</button>
       <button class="filter-btn ${state.flashcardCategory === 'transit' ? 'active' : ''}" data-cat="transit">🛫 공항 & 교통</button>
       <button class="filter-btn ${state.flashcardCategory === 'hotel' ? 'active' : ''}" data-cat="hotel">🏨 호텔 & 숙소</button>
       <button class="filter-btn ${state.flashcardCategory === 'food' ? 'active' : ''}" data-cat="food">🍜 식당 & 맛집</button>
@@ -543,7 +954,6 @@ function renderFlashcards(container) {
 
   container.innerHTML = html;
 
-  // Filter Buttons
   container.querySelectorAll('.filter-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.flashcardCategory = btn.getAttribute('data-cat');
@@ -551,7 +961,6 @@ function renderFlashcards(container) {
     });
   });
 
-  // Mastered Toggle
   container.querySelectorAll('.mastered-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
@@ -561,7 +970,6 @@ function renderFlashcards(container) {
     });
   });
 
-  // Audio Play
   container.querySelectorAll('.audio-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -572,7 +980,7 @@ function renderFlashcards(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Test (Daily Quiz) Tab
+// 5. Comprehensive Daily Test Tab
 // ---------------------------------------------------------------------------
 function renderTest(container) {
   if (state.quizFinished) {
@@ -594,7 +1002,7 @@ function renderTest(container) {
             ${passed ? '🏆 실전 준비 마스터 배지 획득!' : '💡 추천 학습 액션'}
           </div>
           <div style="font-size: 0.8rem; color: var(--color-text-muted);">
-            ${passed ? '나리타 공항부터 가와구치코, 우에노까지 기본 회화를 완벽히 숙지하셨습니다!' : '1초 치트시트와 플래시 암기장을 10분간 다시 훑어본 후 재도전해보세요!'}
+            ${passed ? '공항 입출국부터 가와구치코, 우에노까지 기본 회화를 완벽히 숙지하셨습니다!' : '일자별 학습실과 1초 치트시트를 10분간 다시 훑어본 후 재도전해보세요!'}
           </div>
         </div>
 
@@ -672,7 +1080,6 @@ function renderTest(container) {
 
   container.innerHTML = html;
 
-  // Option selection
   container.querySelectorAll('.quiz-option-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (state.selectedAnswer !== null) return;
@@ -689,7 +1096,6 @@ function renderTest(container) {
     });
   });
 
-  // Audio button
   const audioBtn = container.querySelector('.audio-btn');
   if (audioBtn) {
     audioBtn.addEventListener('click', () => {
@@ -698,7 +1104,6 @@ function renderTest(container) {
     });
   }
 
-  // Next button
   const nextBtn = document.getElementById('btn-next-question');
   if (nextBtn) {
     nextBtn.addEventListener('click', () => {
@@ -716,7 +1121,7 @@ function renderTest(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Roleplay Tab
+// 6. Roleplay Tab
 // ---------------------------------------------------------------------------
 function renderRoleplay(container) {
   const currentScenario = roleplayScenarios.find((s) => s.id === state.activeRoleplayId) || roleplayScenarios[0];
@@ -820,7 +1225,6 @@ function renderRoleplay(container) {
 
   container.innerHTML = html;
 
-  // Scenario tabs
   container.querySelectorAll('.filter-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.activeRoleplayId = btn.getAttribute('data-scid');
@@ -830,7 +1234,6 @@ function renderRoleplay(container) {
     });
   });
 
-  // Reset scenario
   const resetBtn = document.getElementById('btn-reset-scenario');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
@@ -840,7 +1243,6 @@ function renderRoleplay(container) {
     });
   }
 
-  // Audio Play
   container.querySelectorAll('.audio-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -849,36 +1251,30 @@ function renderRoleplay(container) {
     });
   });
 
-  // Choice button click
   container.querySelectorAll('.roleplay-choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.getAttribute('data-idx'), 10);
       const chosen = currentStep.options[idx];
 
-      // Add staff dialogue to logs
       state.roleplayLogs.push({
         speaker: 'staff',
         jp: currentStep.message,
         meaning: currentStep.meaning,
       });
 
-      // Add user response to logs
       state.roleplayLogs.push({
         speaker: 'user',
         jp: chosen.text,
         meaning: chosen.meaning,
       });
 
-      // Pronounce user phrase
       speakJapanese(chosen.text, state.audioSpeed);
-
       showToast(chosen.feedback);
       state.roleplayStepIndex++;
       renderRoleplay(container);
     });
   });
 
-  // Next Scenario
   const nextScenarioBtn = document.getElementById('btn-next-scenario');
   if (nextScenarioBtn) {
     nextScenarioBtn.addEventListener('click', () => {
@@ -893,10 +1289,16 @@ function renderRoleplay(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Pocket Mode Tab (Show directly to Staff)
+// 7. Pocket Mode Tab
 // ---------------------------------------------------------------------------
 function renderPocket(container) {
   const essentialPocketPhrases = [
+    {
+      jp: '観光です。3泊4日の旅行です',
+      pron: '칸코-데스. 산파쿠 욧카노 료코-데스',
+      ko: '관광입니다. 3박 4일 여행입니다 (입국심사)',
+      tag: '공항 입국',
+    },
     {
       jp: '河口湖行きのバスのチケットを2枚ください',
       pron: '가와구치코 유키노 바스노 치켓토오 니마이 쿠다사이',
