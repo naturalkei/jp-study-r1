@@ -6,6 +6,7 @@ import { quizQuestions } from './data/quizzes.js';
 import { roleplayScenarios } from './data/roleplay.js';
 import { immigrationData } from './data/immigration.js';
 import { dailyLessonsData } from './data/dailyLessons.js';
+import { pocketCardsData } from './data/pocketCards.js';
 import { initSpeech, speakJapanese } from './utils/speech.js';
 import { storage } from './utils/storage.js';
 
@@ -37,6 +38,12 @@ const state = {
 
   // Daily Studio Mini Quiz State
   miniQuizAnswers: {}, // key: `${dayId}_${qIdx}` => selected option index
+
+  // Pocket Card Fullscreen View State
+  pocketCategory: 'all',
+  activePocketIndex: 0,
+  isPocketModalOpen: false,
+  isPocketFlipped: false,
 };
 
 // Initialize Speech System
@@ -138,6 +145,7 @@ function attachHeaderEvents() {
     if (!btn) return;
     const targetTab = btn.getAttribute('data-tab');
     if (targetTab && targetTab !== state.currentTab) {
+      closePocketModal();
       state.currentTab = targetTab;
       document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
@@ -1451,103 +1459,323 @@ function renderRoleplay(container) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Pocket Mode Tab
+// 7. Pocket Mode Tab & Fullscreen Large View Layer
 // ---------------------------------------------------------------------------
+let isPocketModalInitialized = false;
+
+function setupPocketModalDOM() {
+  if (document.getElementById('pocket-fullscreen-modal')) return;
+
+  const modalHtml = `
+    <div id="pocket-fullscreen-modal" class="pocket-modal-overlay" role="dialog" aria-modal="true" aria-label="점원 제시용 포켓 카드 크게보기">
+      <div class="pocket-modal-container" id="pocket-modal-container">
+        <!-- Top Action Bar -->
+        <div class="pocket-modal-header">
+          <div class="pocket-modal-badge-group">
+            <span class="card-badge" id="pocket-modal-tag" style="background: var(--color-surface-muted); color: var(--color-text-main); font-weight: 800;"></span>
+            <span class="pocket-modal-counter" id="pocket-modal-counter">1 / 16</span>
+          </div>
+          <div class="pocket-modal-header-actions">
+            <button class="pocket-flip-btn" id="pocket-btn-flip" title="맞은편 점원 방향 180도 회전">
+              <span>🔄</span> <span id="pocket-flip-text">180° 회전</span>
+            </button>
+            <button class="pocket-modal-close-btn" id="pocket-btn-close" title="닫기 (ESC)">✕</button>
+          </div>
+        </div>
+
+        <!-- Scrollable Card View (Rotatable via .is-flipped) -->
+        <div class="pocket-modal-card-scroll">
+          <div class="pocket-modal-card-body" id="pocket-modal-body">
+            <div class="pocket-modal-clerk-banner" id="pocket-clerk-banner">
+              <span id="pocket-clerk-msg">🇯🇵 店員さん、これをお願いします！</span>
+            </div>
+            <div class="pocket-modal-jp" id="pocket-modal-jp"></div>
+            <div class="pocket-modal-pron" id="pocket-modal-pron"></div>
+            <div class="pocket-modal-ko" id="pocket-modal-ko"></div>
+            <div class="pocket-modal-context" id="pocket-modal-context"></div>
+          </div>
+        </div>
+
+        <!-- Audio Action Toolbar -->
+        <div class="pocket-modal-audio-row">
+          <button class="pocket-modal-speaker-btn" id="pocket-btn-speak">
+            <span>🔊</span> <span>점원에게 큰 소리로 들려주기</span>
+          </button>
+          <div class="pocket-speed-selector-row">
+            <span>재생 속도:</span>
+            <button class="pocket-modal-speed-pill" id="pocket-speed-085" data-speed="0.85">0.85x 보통</button>
+            <button class="pocket-modal-speed-pill" id="pocket-speed-100" data-speed="1.0">1.0x 실전</button>
+          </div>
+        </div>
+
+        <!-- Bottom Navigation Controls -->
+        <div class="pocket-modal-footer">
+          <button class="pocket-modal-nav-btn" id="pocket-btn-prev">
+            <span>◀</span> <span>이전 카드</span>
+          </button>
+          <span class="pocket-modal-hint-text">키보드 ◀ ▶ 또는 화면 스와이프</span>
+          <button class="pocket-modal-nav-btn" id="pocket-btn-next">
+            <span>다음 카드</span> <span>▶</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // Attach persistent modal event listeners
+  const modalOverlay = document.getElementById('pocket-fullscreen-modal');
+  const modalContainer = document.getElementById('pocket-modal-container');
+  const closeBtn = document.getElementById('pocket-btn-close');
+  const flipBtn = document.getElementById('pocket-btn-flip');
+  const speakBtn = document.getElementById('pocket-btn-speak');
+  const prevBtn = document.getElementById('pocket-btn-prev');
+  const nextBtn = document.getElementById('pocket-btn-next');
+  const speed085Btn = document.getElementById('pocket-speed-085');
+  const speed100Btn = document.getElementById('pocket-speed-100');
+
+  // Close when clicking backdrop
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) {
+      closePocketModal();
+    }
+  });
+
+  closeBtn.addEventListener('click', () => {
+    closePocketModal();
+  });
+
+  // 180-degree flip for clerk facing
+  flipBtn.addEventListener('click', () => {
+    state.isPocketFlipped = !state.isPocketFlipped;
+    const body = document.getElementById('pocket-modal-body');
+    const flipText = document.getElementById('pocket-flip-text');
+    if (body) body.classList.toggle('is-flipped', state.isPocketFlipped);
+    flipBtn.classList.toggle('active', state.isPocketFlipped);
+    if (flipText) flipText.textContent = state.isPocketFlipped ? '원래대로' : '180° 회전';
+  });
+
+  // Speak current card
+  speakBtn.addEventListener('click', () => {
+    const filtered = getFilteredPocketCards();
+    const card = filtered[state.activePocketIndex];
+    if (card) {
+      speakJapanese(card.jp, state.audioSpeed);
+      showToast('🔊 큰 소리로 재생 중...');
+    }
+  });
+
+  // Speed controls
+  function setSpeed(speed) {
+    state.audioSpeed = speed;
+    storage.setAudioSpeed(speed);
+    speed085Btn.classList.toggle('active', speed === 0.85);
+    speed100Btn.classList.toggle('active', speed === 1.0);
+    const mainSpeedBtn = document.getElementById('btn-audio-speed');
+    if (mainSpeedBtn) mainSpeedBtn.innerHTML = `음성 속도: <strong>${speed}x</strong>`;
+  }
+
+  speed085Btn.addEventListener('click', () => setSpeed(0.85));
+  speed100Btn.addEventListener('click', () => setSpeed(1.0));
+
+  // Navigation
+  prevBtn.addEventListener('click', () => navigatePocketModal(-1));
+  nextBtn.addEventListener('click', () => navigatePocketModal(1));
+
+  // Touch swipe support on modal container
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  modalContainer.addEventListener(
+    'touchstart',
+    (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    },
+    { passive: true }
+  );
+
+  modalContainer.addEventListener(
+    'touchend',
+    (e) => {
+      const diffX = e.changedTouches[0].screenX - touchStartX;
+      const diffY = e.changedTouches[0].screenY - touchStartY;
+      if (Math.abs(diffX) > 45 && Math.abs(diffY) < 60) {
+        if (diffX < 0) {
+          navigatePocketModal(1); // Swipe left -> Next
+        } else {
+          navigatePocketModal(-1); // Swipe right -> Prev
+        }
+      }
+    },
+    { passive: true }
+  );
+
+  // Keyboard navigation
+  if (!isPocketModalInitialized) {
+    window.addEventListener('keydown', (e) => {
+      if (!state.isPocketModalOpen) return;
+      if (e.key === 'Escape') {
+        closePocketModal();
+      } else if (e.key === 'ArrowLeft') {
+        navigatePocketModal(-1);
+      } else if (e.key === 'ArrowRight') {
+        navigatePocketModal(1);
+      }
+    });
+    isPocketModalInitialized = true;
+  }
+}
+
+function getFilteredPocketCards() {
+  if (state.pocketCategory === 'all') return pocketCardsData;
+  return pocketCardsData.filter((c) => c.category === state.pocketCategory);
+}
+
+function updatePocketModalContent() {
+  const filtered = getFilteredPocketCards();
+  if (state.activePocketIndex < 0) state.activePocketIndex = 0;
+  if (state.activePocketIndex >= filtered.length) state.activePocketIndex = filtered.length - 1;
+
+  const card = filtered[state.activePocketIndex];
+  if (!card) return;
+
+  const tagElem = document.getElementById('pocket-modal-tag');
+  const counterElem = document.getElementById('pocket-modal-counter');
+  const clerkMsgElem = document.getElementById('pocket-clerk-msg');
+  const jpElem = document.getElementById('pocket-modal-jp');
+  const pronElem = document.getElementById('pocket-modal-pron');
+  const koElem = document.getElementById('pocket-modal-ko');
+  const contextElem = document.getElementById('pocket-modal-context');
+  const bodyElem = document.getElementById('pocket-modal-body');
+  const flipBtn = document.getElementById('pocket-btn-flip');
+  const flipText = document.getElementById('pocket-flip-text');
+  const prevBtn = document.getElementById('pocket-btn-prev');
+  const nextBtn = document.getElementById('pocket-btn-next');
+  const speed085Btn = document.getElementById('pocket-speed-085');
+  const speed100Btn = document.getElementById('pocket-speed-100');
+
+  if (tagElem) tagElem.textContent = card.categoryName;
+  if (counterElem) counterElem.textContent = `${state.activePocketIndex + 1} / ${filtered.length}`;
+  if (clerkMsgElem) clerkMsgElem.textContent = card.clerkMsg || '🇯🇵 店員さん、これをお願いします！';
+  if (jpElem) jpElem.textContent = card.jp;
+  if (pronElem) pronElem.textContent = card.pron;
+  if (koElem) koElem.textContent = `👉 ${card.ko}`;
+  if (contextElem) contextElem.innerHTML = `💡 <strong>사용 상황:</strong> ${card.context}`;
+
+  // Reset flip on card switch
+  if (bodyElem) bodyElem.classList.toggle('is-flipped', state.isPocketFlipped);
+  if (flipBtn) flipBtn.classList.toggle('active', state.isPocketFlipped);
+  if (flipText) flipText.textContent = state.isPocketFlipped ? '원래대로' : '180° 회전';
+
+  // Update speed button active states
+  if (speed085Btn) speed085Btn.classList.toggle('active', state.audioSpeed === 0.85);
+  if (speed100Btn) speed100Btn.classList.toggle('active', state.audioSpeed === 1.0);
+
+  // Update prev/next button states
+  if (prevBtn) prevBtn.disabled = state.activePocketIndex === 0;
+  if (nextBtn) nextBtn.disabled = state.activePocketIndex === filtered.length - 1;
+}
+
+function openPocketModal(index) {
+  setupPocketModalDOM();
+  state.activePocketIndex = index;
+  state.isPocketFlipped = false;
+  state.isPocketModalOpen = true;
+
+  updatePocketModalContent();
+
+  const modal = document.getElementById('pocket-fullscreen-modal');
+  if (modal) {
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closePocketModal() {
+  state.isPocketModalOpen = false;
+  state.isPocketFlipped = false;
+  const modal = document.getElementById('pocket-fullscreen-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
+
+function navigatePocketModal(direction) {
+  const filtered = getFilteredPocketCards();
+  const nextIdx = state.activePocketIndex + direction;
+  if (nextIdx >= 0 && nextIdx < filtered.length) {
+    state.activePocketIndex = nextIdx;
+    state.isPocketFlipped = false;
+    updatePocketModalContent();
+  }
+}
+
 function renderPocket(container) {
-  const essentialPocketPhrases = [
-    {
-      jp: '観光です。3泊4日の旅行です',
-      pron: '칸코-데스. 산파쿠 욧카노 료코-데스',
-      ko: '관광입니다. 3박 4일 여행입니다 (입국심사)',
-      tag: '공항 입국',
-    },
-    {
-      jp: '河口湖行きのバスのチケットを2枚ください',
-      pron: '가와구치코 유키노 바스노 치켓토오 니마이 쿠다사이',
-      ko: '가와구치코행 버스표 2장 주세요',
-      tag: '공항 버스',
-    },
-    {
-      jp: 'チェックイン前に荷物を預けることはできますか？',
-      pron: '체크인 마에니 니모츠오 아즈케루 코토와 데키마스카?',
-      ko: '체크인 전에 짐 좀 맡아주실 수 있나요?',
-      tag: '호텔 프런트',
-    },
-    {
-      jp: '名物ほうとうを2つとお冷をお願いします',
-      pron: '메-부츠 호-토-오 후타츠토 오히야오 오네가이시마스',
-      ko: '명물 호우토우 2개와 물 부탁합니다',
-      tag: '후지산 맛집',
-    },
-    {
-      jp: 'とりあえず生ビール2つお願いします！',
-      pron: '토리아에즈 나마비-루 후타츠 오네가이시마스!',
-      ko: '우선 생맥주 2잔 주세요!',
-      tag: '이자카야',
-    },
-    {
-      jp: 'お会計をお願いします。カードは使えますか？',
-      pron: '오카이케이오 오네가이시마스. 카-도와 츠카에마스카?',
-      ko: '계산서 부탁합니다. 카드 결제 되나요?',
-      tag: '식당/계산',
-    },
-    {
-      jp: '袋は大丈夫です',
-      pron: '후쿠로와 다이죠-부데스',
-      ko: '비닐봉투는 필요 없습니다 (괜찮습니다)',
-      tag: '편의점',
-    },
-    {
-      jp: '免税会計をお願いします',
-      pron: '멘제- 카이케이오 오네가이시마스',
-      ko: '면세(Tax-Free) 계산 부탁드립니다',
-      tag: '쇼핑/돈키',
-    },
-    {
-      jp: 'スパ（大浴場）は何時から何時までですか？',
-      pron: '스파와 난지카라 난지마데데스카?',
-      ko: '스파(대욕장)는 몇 시부터 몇 시까지인가요?',
-      tag: '칸데오 호텔',
-    },
-    {
-      jp: '成田空港までのスカイライナーを2枚お願いします',
-      pron: '나리타 쿠-코-마데노 스카이라이나-오 니마이 오네가이시마스',
-      ko: '나리타 공항행 스카이라이너 2장 부탁합니다',
-      tag: '귀국/우에노',
-    },
-    {
-      jp: 'トイレはどこですか？',
-      pron: '토이레와 도코데스카?',
-      ko: '화장실은 어디인가요?',
-      tag: '긴급/공통',
-    },
+  setupPocketModalDOM();
+
+  const pocketCategories = [
+    { id: 'all', name: '전체 보기', count: pocketCardsData.length },
+    { id: 'transit', name: '✈️ 공항 & 이동', count: pocketCardsData.filter((c) => c.category === 'transit').length },
+    { id: 'hotel', name: '🏨 호텔', count: pocketCardsData.filter((c) => c.category === 'hotel').length },
+    { id: 'dining', name: '🍜 식당 & 이자카야', count: pocketCardsData.filter((c) => c.category === 'dining').length },
+    { id: 'shopping', name: '🛍️ 쇼핑 & 편의점', count: pocketCardsData.filter((c) => c.category === 'shopping').length },
+    { id: 'emergency', name: '🚨 긴급 & 기타', count: pocketCardsData.filter((c) => c.category === 'emergency').length },
   ];
+
+  const filteredCards = getFilteredPocketCards();
 
   let html = `
     <div class="content-card">
       <div class="card-header" style="margin-bottom: 8px;">
         <h2 class="card-title">🎒 점원에게 직접 보여주는 포켓 카드</h2>
-        <span class="card-badge">현지 실전용</span>
+        <span class="card-badge" style="background: #eff6ff; color: #1d4ed8; font-weight: 700;">📱 풀스크린 크게보기 레이어 지원</span>
       </div>
-      <p style="font-size: 0.85rem; color: var(--color-text-muted);">
-        현지에서 발음이 헷갈리거나 시끄러운 식당에서는 <strong>화면을 점원에게 직접 보여주거나</strong> 소리 버튼을 누르세요!
+      <p style="font-size: 0.88rem; color: var(--color-text-muted); line-height: 1.55;">
+        현지에서 발음이 헷갈리거나 시끄러운 식당에서는 <strong>카드를 탭하여 풀스크린 크게보기 모달</strong>을 띄우세요!<br />
+        대형 일본어 폰트, 맞은편 점원 방향 <strong>180° 화면 회전</strong>, 그리고 <strong>대형 스피커 TTS 음성</strong>을 바로 지원합니다.
       </p>
     </div>
 
-    <div class="pocket-grid">
-      ${essentialPocketPhrases
+    <!-- Category Filter Tabs -->
+    <div class="pocket-filter-bar">
+      ${pocketCategories
         .map(
-          (p) => `
-        <div class="pocket-card" data-audio="${p.jp}">
+          (cat) => `
+        <button class="pocket-filter-pill ${state.pocketCategory === cat.id ? 'active' : ''}" data-cat="${cat.id}">
+          ${cat.name} (${cat.count})
+        </button>
+      `
+        )
+        .join('')}
+    </div>
+
+    <!-- Pocket Cards Grid -->
+    <div class="pocket-grid">
+      ${filteredCards
+        .map(
+          (p, idx) => `
+        <div class="pocket-card" data-idx="${idx}" data-audio="${p.jp}">
           <div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-              <span class="card-badge" style="background: var(--color-surface-muted); color: var(--color-text-muted);">${p.tag}</span>
-              <button class="audio-btn" data-audio="${p.jp}">🔊</button>
+            <div class="pocket-card-top">
+              <span class="card-badge" style="background: var(--color-surface-muted); color: var(--color-text-main); font-weight: 700;">${p.categoryName}</span>
+              <div class="pocket-card-actions">
+                <button class="pocket-card-expand-btn" data-idx="${idx}" title="점원 제시용 크게보기">
+                  <span>🔍</span> 크게보기
+                </button>
+                <button class="audio-btn" data-audio="${p.jp}" title="음성 재생">🔊</button>
+              </div>
             </div>
             <div class="pocket-jp-big">${p.jp}</div>
             <div class="pocket-pron-sub">${p.pron}</div>
+            <div class="pocket-ko-label">👉 ${p.ko}</div>
           </div>
-          <div class="pocket-ko-label">👉 ${p.ko}</div>
+          <div class="pocket-card-footer-tip">
+            <span>💡 ${p.context}</span>
+            <span style="color: var(--color-primary); font-weight: 700;">📱 전면 제시</span>
+          </div>
         </div>
       `
         )
@@ -1557,18 +1785,42 @@ function renderPocket(container) {
 
   container.innerHTML = html;
 
-  container.querySelectorAll('.pocket-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const text = card.getAttribute('data-audio');
-      if (text) speakJapanese(text, state.audioSpeed);
+  // Category filter clicks
+  container.querySelectorAll('.pocket-filter-pill').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.pocketCategory = btn.getAttribute('data-cat');
+      renderPocket(container);
     });
   });
 
+  // Card click -> Open Fullscreen Modal
+  container.querySelectorAll('.pocket-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      // If clicking audio button directly, let audio button handler handle it
+      if (e.target.closest('.audio-btn')) return;
+      const idx = parseInt(card.getAttribute('data-idx'), 10);
+      openPocketModal(idx);
+    });
+  });
+
+  // Expand button click -> Open Fullscreen Modal
+  container.querySelectorAll('.pocket-card-expand-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      openPocketModal(idx);
+    });
+  });
+
+  // Audio button click -> Speak directly without opening modal
   container.querySelectorAll('.audio-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const text = btn.getAttribute('data-audio');
-      if (text) speakJapanese(text, state.audioSpeed);
+      if (text) {
+        speakJapanese(text, state.audioSpeed);
+        showToast('🔊 재생 중...');
+      }
     });
   });
 }
