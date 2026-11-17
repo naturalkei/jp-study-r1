@@ -7,6 +7,8 @@ import { roleplayScenarios } from './data/roleplay.js';
 import { immigrationData } from './data/immigration.js';
 import { dailyLessonsData } from './data/dailyLessons.js';
 import { pocketCardsData } from './data/pocketCards.js';
+import { currencyData, numberChartData, countersData, checkoutPhrasesData, numberQuizPool } from './data/numbers.js';
+import { convertNumberToJapanese } from './utils/numberConverter.js';
 import { initSpeech, speakJapanese } from './utils/speech.js';
 import { storage } from './utils/storage.js';
 
@@ -44,6 +46,14 @@ const state = {
   activePocketIndex: 0,
   isPocketModalOpen: false,
   isPocketFlipped: false,
+
+  // Numbers & Currency Master State
+  numbersSubTab: 'currency', // 'currency', 'chart', 'counters', 'calculator', 'quiz'
+  calcInputNumber: 1500,
+  numQuizIndex: 0,
+  numQuizScore: 0,
+  numQuizSelected: null,
+  numQuizFinished: false,
 };
 
 // Initialize Speech System
@@ -102,6 +112,9 @@ function renderApp() {
         </button>
         <button class="tab-btn ${state.currentTab === 'immigration' ? 'active' : ''}" data-tab="immigration">
           ✈️ 공항 입출국심사
+        </button>
+        <button class="tab-btn ${state.currentTab === 'numbers' ? 'active' : ''}" data-tab="numbers">
+          🔢 숫자 & 엔화 마스터
         </button>
         <button class="tab-btn ${state.currentTab === 'cheatsheet' ? 'active' : ''}" data-tab="cheatsheet">
           ⚡ 1초 치트시트
@@ -183,6 +196,9 @@ function renderCurrentTab() {
       break;
     case 'immigration':
       renderImmigrationClinic(container);
+      break;
+    case 'numbers':
+      renderNumbers(container);
       break;
     case 'cheatsheet':
       renderCheatsheet(container);
@@ -920,6 +936,645 @@ function renderImmigrationClinic(container) {
       renderImmigrationClinic(container);
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// 2.5 Numbers & Currency Master Tab (숫자 & 엔화 마스터)
+// ---------------------------------------------------------------------------
+function renderNumbers(container) {
+  const subTabs = [
+    { id: 'currency', label: '💴 엔화 & 화폐 도감' },
+    { id: 'chart', label: '🔢 숫자 & 변칙 발음' },
+    { id: 'counters', label: '🏷️ 개수·인원·잔 세기' },
+    { id: 'calculator', label: '🧮 엔화 계산기 & 청해기' },
+    { id: 'quiz', label: '🎯 실전 청해 & 퀴즈' },
+  ];
+
+  let subContentHtml = '';
+
+  if (state.numbersSubTab === 'currency') {
+    subContentHtml = `
+      <!-- Coins Section -->
+      <div style="margin-bottom: 28px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+          🪙 일본 동전 6종 도감 & 실전 팁 (1円 ~ 500円)
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 14px;">
+          일본은 동전 사용 빈도가 매우 높습니다. 각 동전의 특징과 사용처를 파악해 계산대에서 빠르게 꺼내보세요!
+        </p>
+        <div class="currency-grid">
+          ${currencyData.coins
+            .map(
+              (c) => `
+            <div class="currency-card">
+              <div>
+                <div class="currency-header">
+                  <div class="currency-value">
+                    <span>${c.kanji}</span>
+                    <span class="currency-reading">(${c.reading})</span>
+                  </div>
+                  <button class="audio-btn" data-audio="${c.audio}" title="발음 듣기">🔊</button>
+                </div>
+                <div style="font-size: 0.78rem; color: #2563eb; font-weight: 600; margin-bottom: 6px;">🇺🇸 ${c.en}</div>
+                <div style="display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">
+                  <span class="card-badge" style="background: #f1f5f9; color: #475569; font-size: 0.72rem;">${c.badge}</span>
+                  <span class="card-badge" style="background: #f8fafc; color: #64748b; font-size: 0.72rem;">${c.material}</span>
+                </div>
+                <p class="currency-desc">${c.desc}</p>
+              </div>
+              <div class="currency-tip">
+                <strong>💡 여행 팁:</strong> ${c.tip}
+              </div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <!-- Bills Section -->
+      <div style="margin-bottom: 28px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+          💴 일본 지폐 4종 도감 & 실전 팁 (1,000円 ~ 10,000円)
+        </h3>
+        <div class="currency-grid">
+          ${currencyData.bills
+            .map(
+              (b) => `
+            <div class="currency-card">
+              <div>
+                <div class="currency-header">
+                  <div class="currency-value">
+                    <span>${b.kanji}</span>
+                    <span class="currency-reading">(${b.reading})</span>
+                  </div>
+                  <button class="audio-btn" data-audio="${b.audio}" title="발음 듣기">🔊</button>
+                </div>
+                <div style="font-size: 0.78rem; color: #2563eb; font-weight: 600; margin-bottom: 6px;">🇺🇸 ${b.en}</div>
+                <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                  <span class="card-badge" style="background: #fef2f2; color: #b91c1c; font-size: 0.72rem;">${b.badge}</span>
+                </div>
+                <div style="font-size: 0.76rem; color: #64748b; margin-bottom: 6px;">👤 도안 인물: ${b.portrait}</div>
+                <p class="currency-desc">${b.desc}</p>
+              </div>
+              <div class="currency-tip">
+                <strong>💡 여행 팁:</strong> ${b.tip}
+              </div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <!-- Checkout Phrases Section -->
+      <div style="margin-bottom: 28px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+          🏪 계산대에서 직원이 자주 쓰는 핵심 멘트 6선
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;">
+          ${checkoutPhrasesData
+            .map(
+              (p) => `
+            <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 14px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                <span class="card-badge" style="background: #eff6ff; color: #1d4ed8; font-size: 0.72rem; font-weight: 700;">${p.situation}</span>
+                <button class="audio-btn" data-audio="${p.audio}" title="발음 듣기">🔊</button>
+              </div>
+              <div style="font-size: 1.05rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 2px;">${p.jp}</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 4px;">${p.hira}</div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: var(--color-primary); margin-bottom: 3px;">👉 ${p.pron}</div>
+              <div style="font-size: 0.82rem; color: var(--color-text-muted); font-weight: 600;">${p.ko}</div>
+              <div style="font-size: 0.76rem; color: #2563eb; font-weight: 500; margin-top: 2px;">🇺🇸 ${p.en}</div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <!-- Practical Travel Tips -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+        ${currencyData.travelTips
+          .map(
+            (t) => `
+          <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: var(--radius-md); padding: 16px;">
+            <div style="font-size: 0.92rem; font-weight: 800; color: #92400e; margin-bottom: 6px;">${t.title}</div>
+            <p style="font-size: 0.84rem; color: #78350f; line-height: 1.55; margin: 0;">${t.desc}</p>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `;
+  } else if (state.numbersSubTab === 'chart') {
+    subContentHtml = `
+      <!-- Sound Changes Warning Clinic -->
+      <div class="sound-clinic-card" style="border-left: 4px solid var(--color-primary);">
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--color-primary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+          🚨 한국인이 가장 많이 틀리는 3대 숫자 변칙 발음 클리닉
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); line-height: 1.55;">
+          일본어 숫자는 특정 단위에서 발음이 부드러워지거나(탁음) 끊어지는(촉음) 음편(音便) 현상이 일어납니다.<br />
+          아래의 <strong>300, 600, 800, 3,000, 8,000, 10,000</strong>만 확실히 잡으면 일본의 모든 숫자가 해결됩니다!
+        </p>
+
+        ${numberChartData.soundChanges
+          .map(
+            (sc) => `
+          <div style="margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--color-border);">
+            <div style="font-size: 0.95rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 4px;">
+              📌 ${sc.type}
+            </div>
+            <div style="font-size: 0.78rem; color: #0284c7; font-weight: 600; margin-bottom: 10px;">${sc.memo}</div>
+            <div class="sound-clinic-grid">
+              ${sc.items
+                .map(
+                  (item) => `
+                <div class="sound-item-box">
+                  <div class="sound-item-left">
+                    <div class="sound-item-num">${item.num} <span style="font-size: 0.95rem; color: var(--color-text-muted);">(${item.kanji})</span></div>
+                    <div class="sound-item-pron">${item.pron} <span style="font-size: 0.8rem; color: #64748b;">(${item.hira})</span></div>
+                    <div class="sound-item-rule">${item.rule}</div>
+                    <div style="font-size: 0.72rem; color: #2563eb;">🇺🇸 ${item.en}</div>
+                  </div>
+                  <button class="audio-btn" data-audio="${item.audio}" title="발음 듣기">🔊</button>
+                </div>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+
+      <!-- Basic 1 to 10 Numbers -->
+      <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm);">
+        <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+          🔢 기본 숫자 1부터 10까지 (一 ~ 十)
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+          ${numberChartData.basic1to10
+            .map(
+              (n) => `
+            <div style="background: var(--color-surface-muted); border-radius: var(--radius-sm); padding: 12px; text-align: center;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 1.3rem; font-weight: 900; color: var(--color-text-main);">${n.num}</span>
+                <button class="audio-btn" data-audio="${n.audio}" title="발음 듣기" style="width: 24px; height: 24px; font-size: 11px;">🔊</button>
+              </div>
+              <div style="font-size: 1.15rem; font-weight: 800; color: var(--color-primary);">${n.kanji}</div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: #0f172a;">${n.pron}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">${n.hira}</div>
+              ${n.note ? `<div style="font-size: 0.7rem; color: #d97706; font-weight: 600; margin-top: 2px;">${n.note}</div>` : ''}
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+    `;
+  } else if (state.numbersSubTab === 'counters') {
+    subContentHtml = `
+      <!-- Items Counter (하나 ~ 열 개) -->
+      <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 4px;">
+              📦 물건/음식 개수 세기 (ひとつ ~ とお)
+            </h3>
+            <p style="font-size: 0.84rem; color: var(--color-text-muted);">
+              식당에서 메뉴를 가리키며 "이거 2개 주세요: 「これ、二つお願いします (코레, 후타츠 오네가이시마스)」" 할 때 필수입니다.
+            </p>
+          </div>
+        </div>
+        <div class="counters-grid">
+          ${countersData.items
+            .map(
+              (item) => `
+            <div class="counter-card">
+              <div>
+                <div style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main);">${item.name} <span style="color: var(--color-primary);">(${item.kanji})</span></div>
+                <div style="font-size: 0.9rem; font-weight: 700; color: #0f172a;">${item.pron} <span style="font-size: 0.78rem; color: #64748b;">(${item.hira})</span></div>
+                <div style="font-size: 0.74rem; color: #2563eb; margin-top: 2px;">🇺🇸 ${item.en}</div>
+              </div>
+              <button class="audio-btn" data-audio="${item.audio}" title="발음 듣기">🔊</button>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <!-- People Counter (인원수) -->
+      <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); margin-bottom: 24px;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 4px;">
+          👥 식당 인원수 세기 (ひとり ~ ごにん)
+        </h3>
+        <p style="font-size: 0.84rem; color: var(--color-text-muted); margin-bottom: 14px;">
+          식당 문을 열고 들어설 때 직원이 「何名様ですか？ (몇 분이세요?)」라고 물으면 손가락과 함께 아래와 같이 답하세요.
+        </p>
+        <div class="counters-grid">
+          ${countersData.people
+            .map(
+              (p) => `
+            <div class="counter-card" style="align-items: flex-start;">
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main);">${p.name} <span style="color: var(--color-primary);">(${p.kanji})</span></span>
+                  <button class="audio-btn" data-audio="${p.audio}" title="발음 듣기">🔊</button>
+                </div>
+                <div style="font-size: 0.92rem; font-weight: 700; color: #0f172a; margin-bottom: 4px;">${p.pron} <span style="font-size: 0.78rem; color: #64748b;">(${p.hira})</span></div>
+                <div style="font-size: 0.76rem; color: #2563eb; margin-bottom: 6px;">🇺🇸 ${p.en}</div>
+                <div style="font-size: 0.76rem; color: #0284c7; background: #f0f9ff; padding: 4px 8px; border-radius: 4px; font-weight: 600;">💡 ${p.tip}</div>
+              </div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <!-- Drinks Counter (음료/생맥주 잔) -->
+      <div style="background: #ffffff; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm);">
+        <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 4px;">
+          🍺 음료 & 생맥주 잔 세기 (いっぱい ~ よんはい)
+        </h3>
+        <p style="font-size: 0.84rem; color: var(--color-text-muted); margin-bottom: 14px;">
+          이자카야에서 「とりあえず生ビール二杯お願いします (우선 생맥주 2잔 주세요!)」 처럼 잔 단위 주문 시 사용합니다.
+        </p>
+        <div class="counters-grid">
+          ${countersData.drinks
+            .map(
+              (d) => `
+            <div class="counter-card" style="align-items: flex-start;">
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-text-main);">${d.name} <span style="color: var(--color-primary);">(${d.kanji})</span></span>
+                  <button class="audio-btn" data-audio="${d.audio}" title="발음 듣기">🔊</button>
+                </div>
+                <div style="font-size: 0.92rem; font-weight: 700; color: #0f172a; margin-bottom: 4px;">${d.pron} <span style="font-size: 0.78rem; color: #64748b;">(${d.hira})</span></div>
+                <div style="font-size: 0.76rem; color: #2563eb; margin-bottom: 6px;">🇺🇸 ${d.en}</div>
+                <div style="font-size: 0.76rem; color: #0284c7; background: #f0f9ff; padding: 4px 8px; border-radius: 4px; font-weight: 600;">💡 ${d.tip}</div>
+              </div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+    `;
+  } else if (state.numbersSubTab === 'calculator') {
+    const converted = convertNumberToJapanese(state.calcInputNumber);
+    const change5000 = Math.max(0, 5000 - state.calcInputNumber);
+    const change10000 = Math.max(0, 10000 - state.calcInputNumber);
+    const convChange5000 = convertNumberToJapanese(change5000);
+    const convChange10000 = convertNumberToJapanese(change10000);
+
+    subContentHtml = `
+      <div class="calc-card">
+        <div style="margin-bottom: 16px;">
+          <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 4px;">
+            🧮 실전 엔화 금액 변환기 & TTS 청해기
+          </h3>
+          <p style="font-size: 0.85rem; color: var(--color-text-muted);">
+            숫자를 입력하거나 퀵 버튼을 누르면 일본어 한자/히라가나/한글 발음으로 변환되고, <strong>점원 멘트 음성</strong>으로 즉시 들려줍니다!
+          </p>
+        </div>
+
+        <!-- Input & Clear Row -->
+        <div class="calc-input-box">
+          <input type="number" id="calc-input" class="calc-number-input" value="${state.calcInputNumber}" min="0" max="99999999" placeholder="엔화 금액 입력 (예: 3850)" />
+          <button id="calc-btn-clear" class="calc-btn-clear">지우기 ⌫</button>
+        </div>
+
+        <!-- Quick Presets -->
+        <div class="calc-presets-row">
+          <span style="font-size: 0.78rem; color: #64748b; font-weight: 700; align-self: center;">여행 추천:</span>
+          <button class="calc-preset-chip" data-val="150">150円 (자판기)</button>
+          <button class="calc-preset-chip" data-val="298">298円 (삼각김밥/도시락)</button>
+          <button class="calc-preset-chip" data-val="500">500円 (원코인 런치)</button>
+          <button class="calc-preset-chip" data-val="980">980円 (라멘 한 그릇)</button>
+          <button class="calc-preset-chip" data-val="1250">1,250円 (식당 정식)</button>
+          <button class="calc-preset-chip" data-val="3850">3,850円 (이자카야 2인)</button>
+          <button class="calc-preset-chip" data-val="8800">8,800円 (쇼핑/면세)</button>
+          <button class="calc-preset-chip" data-val="10000">10,000円 (만엔 지폐)</button>
+        </div>
+
+        <!-- Step Increment Buttons -->
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;">
+          <span style="font-size: 0.78rem; color: #64748b; font-weight: 700; align-self: center;">빠른 추가:</span>
+          <button class="calc-step-btn" data-step="100" style="padding: 4px 10px; font-size: 0.78rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 600;">+100円</button>
+          <button class="calc-step-btn" data-step="500" style="padding: 4px 10px; font-size: 0.78rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 600;">+500円</button>
+          <button class="calc-step-btn" data-step="1000" style="padding: 4px 10px; font-size: 0.78rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 600;">+1,000円</button>
+          <button class="calc-step-btn" data-step="5000" style="padding: 4px 10px; font-size: 0.78rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 600;">+5,000円</button>
+          <button class="calc-step-btn" data-step="10000" style="padding: 4px 10px; font-size: 0.78rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 600;">+10,000円</button>
+        </div>
+
+        <!-- Converter Result Display Box -->
+        <div class="calc-display-box">
+          <div class="calc-display-yen">${converted.formatted} 円</div>
+          <div class="calc-display-kanji">${converted.kanjiYen}</div>
+          <div class="calc-display-hira">${converted.hiraganaYen}</div>
+          <div class="calc-display-pron">👉 ${converted.koreanYen}</div>
+          <div class="calc-display-en">🇺🇸 ${converted.englishYen}</div>
+        </div>
+
+        <!-- Action Speech Buttons -->
+        <div class="calc-actions-row">
+          <button class="calc-speak-btn" id="calc-speak-clerk" data-audio="合計で${converted.kanji}円になります">
+            <span>🔊</span> <span>점원 멘트: "합계 ${converted.formatted}엔입니다"</span>
+          </button>
+          <button class="calc-speak-btn secondary" id="calc-speak-single" data-audio="${converted.kanji}円">
+            <span>🔊</span> <span>금액만 듣기: "${converted.koreanYen}"</span>
+          </button>
+        </div>
+
+        <!-- Change Calculation Simulation -->
+        ${state.calcInputNumber > 0 && state.calcInputNumber <= 10000 ? `
+          <div style="margin-top: 10px;">
+            <div style="font-size: 0.88rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 8px;">
+              💴 지폐 지불 시 거스름돈(お釣り) 미리보기 시뮬레이션
+            </div>
+            <div class="change-sim-grid">
+              ${state.calcInputNumber <= 5000 ? `
+                <div class="change-sim-item">
+                  <div class="change-sim-label">5,000円 지폐 지불 시 거스름돈:</div>
+                  <div class="change-sim-val">${change5000.toLocaleString()} 円 <span style="font-size: 0.82rem; font-weight: 600; color: #64748b;">(${convChange5000.kanjiYen})</span></div>
+                  <div class="change-sim-pron">👉 ${convChange5000.koreanYen}</div>
+                </div>
+              ` : ''}
+              <div class="change-sim-item">
+                <div class="change-sim-label">10,000円 지폐 지불 시 거스름돈:</div>
+                <div class="change-sim-val">${change10000.toLocaleString()} 円 <span style="font-size: 0.82rem; font-weight: 600; color: #64748b;">(${convChange10000.kanjiYen})</span></div>
+                <div class="change-sim-pron">👉 ${convChange10000.koreanYen}</div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } else if (state.numbersSubTab === 'quiz') {
+    if (state.numQuizFinished) {
+      const percentage = Math.round((state.numQuizScore / numberQuizPool.length) * 100);
+      let grade = '🥉 복습 추천';
+      let msg = '숫자 변칙 발음과 계산대 멘트를 한 번 더 복습해보세요!';
+      if (percentage === 100) {
+        grade = '👑 엔화 청해 마스터';
+        msg = '완벽합니다! 일본 현지 어떤 편의점이나 식당 계산대에서도 100% 프리패스할 수 있습니다!';
+      } else if (percentage >= 80) {
+        grade = '🥇 현지 계산대 우등생';
+        msg = '훌륭합니다! 대부분의 실전 계산대 가격을 막힘없이 알아들을 수 있습니다!';
+      } else if (percentage >= 60) {
+        grade = '🥈 실전 여행 통과 레벨';
+        msg = '좋습니다! 800엔/3,000엔 등 변칙 발음만 몇 개 더 주의하면 완벽합니다!';
+      }
+
+      subContentHtml = `
+        <div class="num-quiz-card" style="text-align: center; padding: 40px 20px;">
+          <div style="font-size: 3.5rem; margin-bottom: 12px;">🎉</div>
+          <h3 style="font-size: 1.5rem; font-weight: 900; color: var(--color-text-main); margin-bottom: 6px;">
+            퀴즈 완료! ${grade}
+          </h3>
+          <p style="font-size: 0.95rem; color: var(--color-text-muted); margin-bottom: 20px;">
+            ${msg}
+          </p>
+          <div style="background: #f8fafc; border: 2px solid var(--color-border); border-radius: var(--radius-md); padding: 20px; max-width: 360px; margin: 0 auto 24px auto;">
+            <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; margin-bottom: 4px;">최종 점수</div>
+            <div style="font-size: 2.4rem; font-weight: 900; color: var(--color-primary);">${state.numQuizScore} / ${numberQuizPool.length}</div>
+            <div style="font-size: 0.9rem; font-weight: 700; color: #0f172a;">정답률: ${percentage}%</div>
+          </div>
+          <button id="btn-num-quiz-restart" class="action-btn" style="max-width: 260px; margin: 0 auto; justify-content: center;">
+            <span>🔄</span> <span>퀴즈 다시 풀기</span>
+          </button>
+        </div>
+      `;
+    } else {
+      const q = numberQuizPool[state.numQuizIndex];
+      const isListening = q.type === 'listening';
+      const typeLabel = isListening ? '🎧 계산대 청해' : (q.type === 'sound_change' ? '🎯 변칙 발음' : '🍜 식당 인원/주문');
+
+      subContentHtml = `
+        <div class="num-quiz-card">
+          <div class="num-quiz-header">
+            <span class="num-quiz-type-badge">${typeLabel}</span>
+            <span style="font-size: 0.85rem; font-weight: 800; color: var(--color-text-muted);">
+              문제 ${state.numQuizIndex + 1} / ${numberQuizPool.length} (현재: ${state.numQuizScore}점)
+            </span>
+          </div>
+
+          <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 16px; line-height: 1.45;">
+            ${q.title}
+          </h3>
+
+          ${isListening ? `
+            <div class="num-quiz-listen-box">
+              <button class="num-big-listen-btn" id="num-quiz-listen-btn" data-audio="${q.audio}">
+                <span>🔊</span> <span>점원 목소리 듣기 (탭하여 재생)</span>
+              </button>
+              <div style="font-size: 0.76rem; color: #94a3b8; margin-top: 10px;">
+                귀로만 듣고 아래 보기에서 올바른 금액을 선택하세요!
+              </div>
+            </div>
+          ` : `
+            <div style="margin-bottom: 16px; text-align: center;">
+              <button class="audio-btn" data-audio="${q.audio}" title="음성 듣기" style="width: 44px; height: 44px; font-size: 20px;">🔊</button>
+            </div>
+          `}
+
+          <!-- Options -->
+          <div class="num-quiz-options">
+            ${q.options
+              .map((opt, oIdx) => {
+                let stateClass = '';
+                if (state.numQuizSelected !== null) {
+                  if (oIdx === q.answer) {
+                    stateClass = 'correct';
+                  } else if (oIdx === state.numQuizSelected) {
+                    stateClass = 'incorrect';
+                  }
+                }
+                return `
+                  <button class="num-quiz-opt-btn ${stateClass}" data-oidx="${oIdx}" ${state.numQuizSelected !== null ? 'disabled' : ''}>
+                    ${oIdx + 1}. ${opt}
+                  </button>
+                `;
+              })
+              .join('')}
+          </div>
+
+          <!-- Feedback & Explanation (revealed upon answering) -->
+          ${state.numQuizSelected !== null ? `
+            <div class="num-quiz-feedback-box">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 1rem; font-weight: 800; color: ${state.numQuizSelected === q.answer ? '#059669' : '#dc2626'};">
+                  ${state.numQuizSelected === q.answer ? '✅ 정답입니다!' : '❌ 아쉽습니다! 오답입니다.'}
+                </span>
+                <button class="audio-btn" data-audio="${q.audio}" title="음성 다시 듣기">🔊 다시 듣기</button>
+              </div>
+              <div style="font-size: 0.95rem; font-weight: 700; color: var(--color-text-main); margin-bottom: 2px;">
+                🇯🇵 ${q.scriptJp}
+              </div>
+              <div style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600; margin-bottom: 6px;">
+                👉 ${q.scriptPron} (${q.scriptKo})
+              </div>
+              <div style="font-size: 0.82rem; color: #475569; line-height: 1.5; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+                💡 ${q.explanation}
+              </div>
+            </div>
+
+            <button id="btn-num-quiz-next" class="action-btn" style="width: 100%; justify-content: center; margin-top: 8px;">
+              <span>다음 문제로 ➔</span>
+            </button>
+          ` : ''}
+        </div>
+      `;
+    }
+  }
+
+  let html = `
+    <!-- Master Header -->
+    <div class="content-card">
+      <div class="card-header" style="margin-bottom: 8px;">
+        <h2 class="card-title">🔢 숫자 & 엔화 마스터 (화폐·변칙발음·계산대 청해)</h2>
+        <span class="card-badge" style="background: #eff6ff; color: #1d4ed8; font-weight: 700;">실전 청해 & 퀴즈 완비</span>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--color-text-muted); line-height: 1.55;">
+        동전 6종과 지폐 4종 도감, <strong>300·600·800·3,000·8,000 변칙 발음 클리닉</strong>, 식당 개수/인원수 세기,
+        실시간 금액 변환기 및 <strong>점원 계산대 청해 퀴즈</strong>까지 완벽하게 마스터하세요!
+      </p>
+    </div>
+
+    <!-- Sub-tab Navigation Bar -->
+    <div class="num-subtab-bar">
+      ${subTabs
+        .map(
+          (t) => `
+        <button class="num-subtab-btn ${state.numbersSubTab === t.id ? 'active' : ''}" data-sub="${t.id}">
+          ${t.label}
+        </button>
+      `
+        )
+        .join('')}
+    </div>
+
+    <!-- Sub-tab Content Area -->
+    <div id="numbers-sub-content">
+      ${subContentHtml}
+    </div>
+  `;
+
+  container.innerHTML = html;
+
+  // Event Listeners:
+  // Sub-tab switching
+  container.querySelectorAll('.num-subtab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sub = btn.getAttribute('data-sub');
+      if (sub && sub !== state.numbersSubTab) {
+        state.numbersSubTab = sub;
+        renderNumbers(container);
+      }
+    });
+  });
+
+  // Audio Buttons
+  container.querySelectorAll('.audio-btn, #num-quiz-listen-btn, #calc-speak-clerk, #calc-speak-single').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = btn.getAttribute('data-audio');
+      if (text) {
+        speakJapanese(text, state.audioSpeed);
+        showToast('🔊 재생 중...');
+      }
+    });
+  });
+
+  // Calculator Sub-tab Events
+  if (state.numbersSubTab === 'calculator') {
+    const calcInput = container.querySelector('#calc-input');
+    if (calcInput) {
+      calcInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        state.calcInputNumber = isNaN(val) ? 0 : val;
+        renderNumbers(container);
+        const updatedInput = container.querySelector('#calc-input');
+        if (updatedInput) {
+          updatedInput.focus();
+        }
+      });
+    }
+
+    const clearBtn = container.querySelector('#calc-btn-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        state.calcInputNumber = 0;
+        renderNumbers(container);
+      });
+    }
+
+    container.querySelectorAll('.calc-preset-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const val = parseInt(chip.getAttribute('data-val'), 10);
+        state.calcInputNumber = val;
+        renderNumbers(container);
+      });
+    });
+
+    container.querySelectorAll('.calc-step-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const step = parseInt(btn.getAttribute('data-step'), 10);
+        state.calcInputNumber = (state.calcInputNumber || 0) + step;
+        renderNumbers(container);
+      });
+    });
+  }
+
+  // Quiz Sub-tab Events
+  if (state.numbersSubTab === 'quiz') {
+    if (!state.numQuizFinished) {
+      container.querySelectorAll('.num-quiz-opt-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (state.numQuizSelected !== null) return;
+          const oIdx = parseInt(btn.getAttribute('data-oidx'), 10);
+          state.numQuizSelected = oIdx;
+          const q = numberQuizPool[state.numQuizIndex];
+          if (oIdx === q.answer) {
+            state.numQuizScore++;
+            showToast('🎉 정답입니다!');
+          } else {
+            showToast('아쉽습니다! 정답 해설을 확인하세요.');
+          }
+          renderNumbers(container);
+        });
+      });
+
+      const nextBtn = container.querySelector('#btn-num-quiz-next');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+          if (state.numQuizIndex + 1 < numberQuizPool.length) {
+            state.numQuizIndex++;
+            state.numQuizSelected = null;
+          } else {
+            state.numQuizFinished = true;
+          }
+          renderNumbers(container);
+        });
+      }
+    } else {
+      const restartBtn = container.querySelector('#btn-num-quiz-restart');
+      if (restartBtn) {
+        restartBtn.addEventListener('click', () => {
+          state.numQuizIndex = 0;
+          state.numQuizScore = 0;
+          state.numQuizSelected = null;
+          state.numQuizFinished = false;
+          renderNumbers(container);
+        });
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
