@@ -23,9 +23,9 @@ const state = {
   audioSpeed: storage.getAudioSpeed(),
 
   // Comprehensive Quiz State
+  quizQuestionsList: [...quizQuestions],
   quizIndex: 0,
-  quizScore: 0,
-  selectedAnswer: null,
+  quizUserAnswers: {}, // key: question index => selected option index
   quizFinished: false,
 
   // Roleplay State
@@ -50,9 +50,9 @@ const state = {
   // Numbers & Currency Master State
   numbersSubTab: 'currency', // 'currency', 'chart', 'counters', 'calculator', 'quiz'
   calcInputNumber: 1500,
+  numQuizList: [...numberQuizPool],
   numQuizIndex: 0,
-  numQuizScore: 0,
-  numQuizSelected: null,
+  numQuizAnswers: {}, // key: question index => selected option index
   numQuizFinished: false,
 };
 
@@ -1316,8 +1316,13 @@ function renderNumbers(container) {
       </div>
     `;
   } else if (state.numbersSubTab === 'quiz') {
+    const totalNumQuestions = state.numQuizList.length;
+    const numScore = state.numQuizList.reduce((acc, q, idx) => {
+      return acc + (state.numQuizAnswers[idx] === q.answer ? 1 : 0);
+    }, 0);
+
     if (state.numQuizFinished) {
-      const percentage = Math.round((state.numQuizScore / numberQuizPool.length) * 100);
+      const percentage = Math.round((numScore / totalNumQuestions) * 100);
       let grade = '🥉 복습 추천';
       let msg = '숫자 변칙 발음과 계산대 멘트를 한 번 더 복습해보세요!';
       if (percentage === 100) {
@@ -1342,26 +1347,44 @@ function renderNumbers(container) {
           </p>
           <div style="background: #f8fafc; border: 2px solid var(--color-border); border-radius: var(--radius-md); padding: 20px; max-width: 360px; margin: 0 auto 24px auto;">
             <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; margin-bottom: 4px;">최종 점수</div>
-            <div style="font-size: 2.4rem; font-weight: 900; color: var(--color-primary);">${state.numQuizScore} / ${numberQuizPool.length}</div>
+            <div style="font-size: 2.4rem; font-weight: 900; color: var(--color-primary);">${numScore} / ${totalNumQuestions}</div>
             <div style="font-size: 0.9rem; font-weight: 700; color: #0f172a;">정답률: ${percentage}%</div>
           </div>
-          <button id="btn-num-quiz-restart" class="action-btn" style="max-width: 260px; margin: 0 auto; justify-content: center;">
-            <span>🔄</span> <span>퀴즈 다시 풀기</span>
-          </button>
+          <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button id="btn-num-quiz-restart" class="quiz-ctrl-btn" style="padding: 12px 24px; font-size: 0.95rem;">
+              <span>🔄</span> <span>처음부터 다시 풀기</span>
+            </button>
+            <button id="btn-num-quiz-shuffle-restart" class="quiz-ctrl-btn" style="padding: 12px 24px; font-size: 0.95rem; background: #eff6ff; border-color: #93c5fd; color: #1d4ed8;">
+              <span>🔀</span> <span>문제 셔플 후 다시 풀기</span>
+            </button>
+          </div>
         </div>
       `;
     } else {
-      const q = numberQuizPool[state.numQuizIndex];
+      const q = state.numQuizList[state.numQuizIndex];
+      const userAns = state.numQuizAnswers[state.numQuizIndex];
+      const isAns = userAns !== undefined;
       const isListening = q.type === 'listening';
       const typeLabel = isListening ? '🎧 계산대 청해' : (q.type === 'sound_change' ? '🎯 변칙 발음' : '🍜 식당 인원/주문');
 
       subContentHtml = `
         <div class="num-quiz-card">
-          <div class="num-quiz-header">
-            <span class="num-quiz-type-badge">${typeLabel}</span>
-            <span style="font-size: 0.85rem; font-weight: 800; color: var(--color-text-muted);">
-              문제 ${state.numQuizIndex + 1} / ${numberQuizPool.length} (현재: ${state.numQuizScore}점)
-            </span>
+          <!-- Quiz Toolbar with Shuffle, Reset, and Progress -->
+          <div class="quiz-toolbar">
+            <div class="quiz-meta-left">
+              <span class="num-quiz-type-badge">${typeLabel}</span>
+              <span style="font-weight: 800; font-size: 0.92rem; color: var(--color-text-main);">
+                문제 ${state.numQuizIndex + 1} / ${totalNumQuestions}
+              </span>
+            </div>
+            <div class="quiz-toolbar-actions">
+              <button class="quiz-ctrl-btn" id="btn-num-quiz-shuffle" title="문제 무작위 셔플">
+                <span>🔀</span> <span>셔플</span>
+              </button>
+              <button class="quiz-ctrl-btn" id="btn-num-quiz-reset" title="처음부터 다시 풀기">
+                <span>🔄</span> <span>초기화</span>
+              </button>
+            </div>
           </div>
 
           <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--color-text-main); margin-bottom: 16px; line-height: 1.45;">
@@ -1388,16 +1411,18 @@ function renderNumbers(container) {
             ${q.options
               .map((opt, oIdx) => {
                 let stateClass = '';
-                if (state.numQuizSelected !== null) {
+                if (isAns) {
                   if (oIdx === q.answer) {
                     stateClass = 'correct';
-                  } else if (oIdx === state.numQuizSelected) {
+                  } else if (oIdx === userAns) {
                     stateClass = 'incorrect';
                   }
                 }
                 return `
-                  <button class="num-quiz-opt-btn ${stateClass}" data-oidx="${oIdx}" ${state.numQuizSelected !== null ? 'disabled' : ''}>
-                    ${oIdx + 1}. ${opt}
+                  <button class="num-quiz-opt-btn ${stateClass}" data-oidx="${oIdx}" ${isAns ? 'disabled' : ''}>
+                    <span>${oIdx + 1}. ${opt}</span>
+                    ${isAns && oIdx === q.answer ? '<span>✅</span>' : ''}
+                    ${isAns && oIdx !== q.answer && oIdx === userAns ? '<span>❌</span>' : ''}
                   </button>
                 `;
               })
@@ -1405,11 +1430,11 @@ function renderNumbers(container) {
           </div>
 
           <!-- Feedback & Explanation (revealed upon answering) -->
-          ${state.numQuizSelected !== null ? `
+          ${isAns ? `
             <div class="num-quiz-feedback-box">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 1rem; font-weight: 800; color: ${state.numQuizSelected === q.answer ? '#059669' : '#dc2626'};">
-                  ${state.numQuizSelected === q.answer ? '✅ 정답입니다!' : '❌ 아쉽습니다! 오답입니다.'}
+                <span style="font-size: 1rem; font-weight: 800; color: ${userAns === q.answer ? '#059669' : '#dc2626'};">
+                  ${userAns === q.answer ? '✅ 정답입니다!' : '❌ 아쉽습니다! 오답입니다.'}
                 </span>
                 <button class="audio-btn" data-audio="${q.audio}" title="음성 다시 듣기">🔊 다시 듣기</button>
               </div>
@@ -1423,11 +1448,27 @@ function renderNumbers(container) {
                 💡 ${q.explanation}
               </div>
             </div>
-
-            <button id="btn-num-quiz-next" class="action-btn" style="width: 100%; justify-content: center; margin-top: 8px;">
-              <span>다음 문제로 ➔</span>
-            </button>
           ` : ''}
+
+          <!-- Bottom Navigation Buttons (이전 문제 / 다음 문제) -->
+          <div class="quiz-nav-row">
+            <button class="quiz-nav-btn prev" id="btn-num-quiz-prev" ${state.numQuizIndex === 0 ? 'disabled' : ''}>
+              <span>⬅️</span> <span>이전 문제</span>
+            </button>
+            ${
+              isAns
+                ? `
+              <button class="quiz-nav-btn next" id="btn-num-quiz-next">
+                <span>${state.numQuizIndex + 1 < totalNumQuestions ? '다음 문제 ➡️' : '결과 확인하기 🏁'}</span>
+              </button>
+            `
+                : `
+              <button class="quiz-nav-btn next" style="background: #94a3b8; border-color: #94a3b8; cursor: not-allowed;" disabled>
+                <span>정답을 선택하세요</span>
+              </button>
+            `
+            }
+          </div>
         </div>
       `;
     }
@@ -1536,12 +1577,11 @@ function renderNumbers(container) {
     if (!state.numQuizFinished) {
       container.querySelectorAll('.num-quiz-opt-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-          if (state.numQuizSelected !== null) return;
+          if (state.numQuizAnswers[state.numQuizIndex] !== undefined) return;
           const oIdx = parseInt(btn.getAttribute('data-oidx'), 10);
-          state.numQuizSelected = oIdx;
-          const q = numberQuizPool[state.numQuizIndex];
+          state.numQuizAnswers[state.numQuizIndex] = oIdx;
+          const q = state.numQuizList[state.numQuizIndex];
           if (oIdx === q.answer) {
-            state.numQuizScore++;
             showToast('🎉 정답입니다!');
           } else {
             showToast('아쉽습니다! 정답 해설을 확인하세요.');
@@ -1550,15 +1590,48 @@ function renderNumbers(container) {
         });
       });
 
+      const prevBtn = container.querySelector('#btn-num-quiz-prev');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+          if (state.numQuizIndex > 0) {
+            state.numQuizIndex--;
+            renderNumbers(container);
+          }
+        });
+      }
+
       const nextBtn = container.querySelector('#btn-num-quiz-next');
       if (nextBtn) {
         nextBtn.addEventListener('click', () => {
-          if (state.numQuizIndex + 1 < numberQuizPool.length) {
+          if (state.numQuizIndex + 1 < state.numQuizList.length) {
             state.numQuizIndex++;
-            state.numQuizSelected = null;
+            renderNumbers(container);
           } else {
             state.numQuizFinished = true;
+            renderNumbers(container);
           }
+        });
+      }
+
+      const shuffleBtn = container.querySelector('#btn-num-quiz-shuffle');
+      if (shuffleBtn) {
+        shuffleBtn.addEventListener('click', () => {
+          state.numQuizList = shuffleArray(numberQuizPool);
+          state.numQuizIndex = 0;
+          state.numQuizAnswers = {};
+          state.numQuizFinished = false;
+          showToast('🔀 문제 순서가 무작위로 섞였습니다!');
+          renderNumbers(container);
+        });
+      }
+
+      const resetBtn = container.querySelector('#btn-num-quiz-reset');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          state.numQuizIndex = 0;
+          state.numQuizAnswers = {};
+          state.numQuizFinished = false;
+          showToast('퀴즈가 처음부터 초기화되었습니다.');
           renderNumbers(container);
         });
       }
@@ -1567,9 +1640,20 @@ function renderNumbers(container) {
       if (restartBtn) {
         restartBtn.addEventListener('click', () => {
           state.numQuizIndex = 0;
-          state.numQuizScore = 0;
-          state.numQuizSelected = null;
+          state.numQuizAnswers = {};
           state.numQuizFinished = false;
+          renderNumbers(container);
+        });
+      }
+
+      const shuffleRestartBtn = container.querySelector('#btn-num-quiz-shuffle-restart');
+      if (shuffleRestartBtn) {
+        shuffleRestartBtn.addEventListener('click', () => {
+          state.numQuizList = shuffleArray(numberQuizPool);
+          state.numQuizIndex = 0;
+          state.numQuizAnswers = {};
+          state.numQuizFinished = false;
+          showToast('🔀 문제가 무작위로 셔플되었습니다!');
           renderNumbers(container);
         });
       }
@@ -1836,9 +1920,32 @@ function renderFlashcards(container) {
 // ---------------------------------------------------------------------------
 // 5. Comprehensive Daily Test Tab
 // ---------------------------------------------------------------------------
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function getComprehensiveQuizScore() {
+  let score = 0;
+  state.quizQuestionsList.forEach((q, idx) => {
+    const chosen = state.quizUserAnswers[idx];
+    if (chosen !== undefined && q.options[chosen] && q.options[chosen].isCorrect) {
+      score++;
+    }
+  });
+  return score;
+}
+
 function renderTest(container) {
+  const totalQuestions = state.quizQuestionsList.length;
+
   if (state.quizFinished) {
-    const percentage = Math.round((state.quizScore / quizQuestions.length) * 100);
+    const score = getComprehensiveQuizScore();
+    const percentage = Math.round((score / totalQuestions) * 100);
     const passed = percentage >= 80;
 
     let html = `
@@ -1848,7 +1955,7 @@ function renderTest(container) {
           ${passed ? '축하합니다! 테스트 통과!' : '조금만 더 복습해 볼까요?'}
         </h2>
         <p style="font-size: 1rem; color: var(--color-text-muted); margin-bottom: 24px;">
-          최종 점수: <strong style="color: var(--color-primary); font-size: 1.4rem;">${state.quizScore} / ${quizQuestions.length}</strong> (${percentage}점)
+          최종 점수: <strong style="color: var(--color-primary); font-size: 1.4rem;">${score} / ${totalQuestions}</strong> (${percentage}점)
         </p>
 
         <div style="display: inline-block; background: var(--color-surface-muted); padding: 16px 24px; border-radius: 12px; margin-bottom: 24px; text-align: left; max-width: 400px; width: 100%;">
@@ -1860,33 +1967,59 @@ function renderTest(container) {
           </div>
         </div>
 
-        <div>
-          <button class="quiz-next-btn" id="btn-restart-quiz" style="max-width: 240px; margin: 0 auto;">
-            🔄 다시 테스트 보기
+        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+          <button class="quiz-ctrl-btn" id="btn-restart-quiz" style="padding: 12px 24px; font-size: 0.95rem;">
+            <span>🔄</span> <span>처음부터 다시 보기</span>
+          </button>
+          <button class="quiz-ctrl-btn" id="btn-shuffle-restart-quiz" style="padding: 12px 24px; font-size: 0.95rem; background: #eff6ff; border-color: #93c5fd; color: #1d4ed8;">
+            <span>🔀</span> <span>문제 셔플 후 다시 풀기</span>
           </button>
         </div>
       </div>
     `;
 
     container.innerHTML = html;
+
     document.getElementById('btn-restart-quiz').addEventListener('click', () => {
       state.quizIndex = 0;
-      state.quizScore = 0;
-      state.selectedAnswer = null;
+      state.quizUserAnswers = {};
       state.quizFinished = false;
+      renderTest(container);
+    });
+
+    document.getElementById('btn-shuffle-restart-quiz').addEventListener('click', () => {
+      state.quizQuestionsList = shuffleArray(quizQuestions);
+      state.quizIndex = 0;
+      state.quizUserAnswers = {};
+      state.quizFinished = false;
+      showToast('🔀 문제가 무작위로 셔플되었습니다!');
       renderTest(container);
     });
     return;
   }
 
-  const currentQ = quizQuestions[state.quizIndex];
-  const isAnswered = state.selectedAnswer !== null;
+  const currentQ = state.quizQuestionsList[state.quizIndex];
+  const userChosenIdx = state.quizUserAnswers[state.quizIndex];
+  const isAnswered = userChosenIdx !== undefined;
 
   let html = `
     <div class="quiz-box">
-      <div class="quiz-meta">
-        <span class="card-badge">${currentQ.category}</span>
-        <span style="font-weight: 700;">문제 ${state.quizIndex + 1} / ${quizQuestions.length}</span>
+      <!-- Quiz Toolbar with Shuffle, Reset, and Progress -->
+      <div class="quiz-toolbar">
+        <div class="quiz-meta-left">
+          <span class="card-badge">${currentQ.category}</span>
+          <span style="font-weight: 800; font-size: 0.92rem; color: var(--color-text-main);">
+            문제 ${state.quizIndex + 1} / ${totalQuestions}
+          </span>
+        </div>
+        <div class="quiz-toolbar-actions">
+          <button class="quiz-ctrl-btn" id="btn-quiz-shuffle" title="문제 무작위 셔플">
+            <span>🔀</span> <span>셔플</span>
+          </button>
+          <button class="quiz-ctrl-btn" id="btn-quiz-reset" title="처음부터 다시 풀기">
+            <span>🔄</span> <span>초기화</span>
+          </button>
+        </div>
       </div>
 
       <div class="quiz-scenario">
@@ -1904,13 +2037,13 @@ function renderTest(container) {
             let stateClass = '';
             if (isAnswered) {
               if (opt.isCorrect) stateClass = 'correct';
-              else if (state.selectedAnswer === idx) stateClass = 'wrong';
+              else if (userChosenIdx === idx) stateClass = 'wrong';
             }
             return `
             <button class="quiz-option-btn ${stateClass}" data-idx="${idx}" ${isAnswered ? 'disabled' : ''}>
               <span>${idx + 1}. ${opt.text}</span>
               ${isAnswered && opt.isCorrect ? '<span>✅</span>' : ''}
-              ${isAnswered && !opt.isCorrect && state.selectedAnswer === idx ? '<span>❌</span>' : ''}
+              ${isAnswered && !opt.isCorrect && userChosenIdx === idx ? '<span>❌</span>' : ''}
             </button>
           `;
           })
@@ -1923,25 +2056,42 @@ function renderTest(container) {
         <div class="quiz-explanation">
           <strong>해설:</strong> ${currentQ.explanation}
         </div>
-        <button class="quiz-next-btn" id="btn-next-question">
-          ${state.quizIndex + 1 < quizQuestions.length ? '다음 문제로 👉' : '결과 확인하기 🏁'}
-        </button>
       `
           : ''
       }
+
+      <!-- Bottom Navigation Buttons (이전 문제 / 다음 문제) -->
+      <div class="quiz-nav-row">
+        <button class="quiz-nav-btn prev" id="btn-prev-question" ${state.quizIndex === 0 ? 'disabled' : ''}>
+          <span>⬅️</span> <span>이전 문제</span>
+        </button>
+        ${
+          isAnswered
+            ? `
+          <button class="quiz-nav-btn next" id="btn-next-question">
+            <span>${state.quizIndex + 1 < totalQuestions ? '다음 문제 ➡️' : '결과 확인하기 🏁'}</span>
+          </button>
+        `
+            : `
+          <button class="quiz-nav-btn next" style="background: #94a3b8; border-color: #94a3b8; cursor: not-allowed;" title="보기를 먼저 선택해 주세요" disabled>
+            <span>정답을 선택하세요</span>
+          </button>
+        `
+        }
+      </div>
     </div>
   `;
 
   container.innerHTML = html;
 
+  // Options Click
   container.querySelectorAll('.quiz-option-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (state.selectedAnswer !== null) return;
+      if (state.quizUserAnswers[state.quizIndex] !== undefined) return;
       const idx = parseInt(btn.getAttribute('data-idx'), 10);
-      state.selectedAnswer = idx;
+      state.quizUserAnswers[state.quizIndex] = idx;
 
       if (currentQ.options[idx].isCorrect) {
-        state.quizScore++;
         showToast('정답입니다! 🎉');
       } else {
         showToast('아쉽네요! 해설을 확인해보세요.');
@@ -1950,6 +2100,7 @@ function renderTest(container) {
     });
   });
 
+  // Audio Play
   const audioBtn = container.querySelector('.audio-btn');
   if (audioBtn) {
     audioBtn.addEventListener('click', () => {
@@ -1958,18 +2109,55 @@ function renderTest(container) {
     });
   }
 
+  // Prev Question
+  const prevBtn = document.getElementById('btn-prev-question');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      if (state.quizIndex > 0) {
+        state.quizIndex--;
+        renderTest(container);
+      }
+    });
+  }
+
+  // Next Question
   const nextBtn = document.getElementById('btn-next-question');
   if (nextBtn) {
     nextBtn.addEventListener('click', () => {
-      if (state.quizIndex + 1 < quizQuestions.length) {
+      if (state.quizIndex + 1 < totalQuestions) {
         state.quizIndex++;
-        state.selectedAnswer = null;
         renderTest(container);
       } else {
         state.quizFinished = true;
-        storage.saveQuizResult(state.quizScore, quizQuestions.length);
+        const finalScore = getComprehensiveQuizScore();
+        storage.saveQuizResult(finalScore, totalQuestions);
         renderTest(container);
       }
+    });
+  }
+
+  // Shuffle Questions
+  const shuffleBtn = document.getElementById('btn-quiz-shuffle');
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', () => {
+      state.quizQuestionsList = shuffleArray(quizQuestions);
+      state.quizIndex = 0;
+      state.quizUserAnswers = {};
+      state.quizFinished = false;
+      showToast('🔀 문제 순서가 무작위로 섞였습니다!');
+      renderTest(container);
+    });
+  }
+
+  // Reset Test
+  const resetBtn = document.getElementById('btn-quiz-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      state.quizIndex = 0;
+      state.quizUserAnswers = {};
+      state.quizFinished = false;
+      showToast('테스트가 처음부터 초기화되었습니다.');
+      renderTest(container);
     });
   }
 }
