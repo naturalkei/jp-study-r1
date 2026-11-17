@@ -1,4 +1,4 @@
-// Local storage persistence utility for study progress and checklist
+// Local storage persistence utility for study progress, checklist, and data backup/restore
 
 const STORAGE_KEYS = {
   CHECKLIST: 'jp_study_checklist_v1',
@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   QUIZ_HISTORY: 'jp_study_quiz_history_v1',
   ROLEPLAY_DONE: 'jp_study_roleplay_done_v1',
   AUDIO_SPEED: 'jp_study_audio_speed_v1',
+  MINI_QUIZ: 'jp_study_mini_quiz_v1',
 };
 
 export const storage = {
@@ -120,6 +121,121 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.AUDIO_SPEED, speed.toString());
     } catch (e) {
       console.warn('Storage save error:', e);
+    }
+  },
+
+  getMiniQuizAnswers() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.MINI_QUIZ);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  setMiniQuizAnswers(answers) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MINI_QUIZ, JSON.stringify(answers));
+    } catch (e) {
+      console.warn('Storage save error:', e);
+    }
+  },
+
+  // Export all localStorage data into a clean JSON object
+  exportData() {
+    const checklist = this.getChecklist();
+    const masteredPhrases = this.getMasteredPhrases();
+    const quizHistory = this.getQuizHistory();
+    const roleplayDone = this.getRoleplayDone();
+    const miniQuizAnswers = this.getMiniQuizAnswers();
+    const audioSpeed = this.getAudioSpeed();
+
+    return {
+      appName: 'jp-study-r1',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      summary: {
+        checklistItemsCount: Object.values(checklist).filter(Boolean).length,
+        masteredPhrasesCount: masteredPhrases.length,
+        quizHistoryCount: quizHistory.length,
+        roleplayDoneCount: roleplayDone.length,
+        miniQuizCount: Object.keys(miniQuizAnswers).length,
+      },
+      data: {
+        checklist,
+        masteredPhrases,
+        quizHistory,
+        roleplayDone,
+        miniQuizAnswers,
+        audioSpeed,
+      },
+    };
+  },
+
+  // Import and validate JSON backup data into localStorage
+  importData(backup) {
+    if (!backup || typeof backup !== 'object') {
+      throw new Error('유효하지 않은 백업 데이터입니다 (JSON 형식이 아님).');
+    }
+
+    const payload = backup.data || backup; // Support both wrapped and flat backup formats
+
+    let importedCount = 0;
+
+    if (payload.checklist && typeof payload.checklist === 'object') {
+      this.setChecklist(payload.checklist);
+      importedCount++;
+    }
+
+    if (Array.isArray(payload.masteredPhrases)) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.MASTERED_PHRASES, JSON.stringify(payload.masteredPhrases));
+        importedCount++;
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    if (Array.isArray(payload.quizHistory)) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.QUIZ_HISTORY, JSON.stringify(payload.quizHistory));
+        importedCount++;
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    if (Array.isArray(payload.roleplayDone)) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.ROLEPLAY_DONE, JSON.stringify(payload.roleplayDone));
+        importedCount++;
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    if (payload.miniQuizAnswers && typeof payload.miniQuizAnswers === 'object') {
+      this.setMiniQuizAnswers(payload.miniQuizAnswers);
+      importedCount++;
+    }
+
+    if (payload.audioSpeed) {
+      this.setAudioSpeed(payload.audioSpeed);
+      importedCount++;
+    }
+
+    if (importedCount === 0) {
+      throw new Error('복원할 수 있는 유효한 학습 데이터 항목을 찾지 못했습니다.');
+    }
+
+    return true;
+  },
+
+  resetAll() {
+    try {
+      Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
+    } catch (e) {
+      console.warn('Storage reset error:', e);
     }
   },
 };

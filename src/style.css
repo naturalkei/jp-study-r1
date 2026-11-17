@@ -2246,3 +2246,280 @@ body {
   padding: 16px;
   margin-bottom: 20px;
 }
+
+/* ==========================================================================
+   LocalStorage Backup & Restore Modal Styles (데이터 백업 및 복원)
+   ========================================================================== */
+.backup-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.backup-modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.backup-modal-container {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.backup-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.backup-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backup-modal-icon {
+  font-size: 26px;
+}
+
+.backup-modal-title {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  margin-bottom: 2px;
+}
+
+.backup-modal-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.backup-modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.backup-modal-close-btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text-main);
+}
+
+.backup-modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.backup-card {
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.backup-card.danger-zone {
+  background: var(--color-accent-light);
+  border-color: #fecdd3;
+}
+
+.backup-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.backup-section-tag {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+}
+
+.backup-section-tag.danger {
+  color: var(--color-accent);
+}
+
+.backup-timestamp {
+  font-size: 0.72rem;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+.backup-guide-text {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.backup-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.backup-stat-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.backup-stat-item .stat-icon {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.backup-stat-item .stat-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  margin-bottom: 2px;
+}
+
+.backup-stat-item .stat-lbl {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.backup-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.backup-action-btn {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.backup-action-btn.primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.backup-action-btn.primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.backup-action-btn.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-main);
+}
+
+.backup-action-btn.secondary:hover {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border-hover);
+}
+
+.backup-action-btn.warning {
+  background: #ea580c;
+  color: white;
+}
+
+.backup-action-btn.warning:hover {
+  background: #c2410c;
+}
+
+.backup-action-btn.danger {
+  background: var(--color-accent);
+  color: white;
+}
+
+.backup-action-btn.danger:hover {
+  background: #be123c;
+}
+
+.backup-import-method {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.backup-method-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin-bottom: 8px;
+}
+
+.backup-file-upload-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.backup-file-name {
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.backup-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-family: monospace;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  color: var(--color-text-main);
+  box-sizing: border-box;
+}
+
+.backup-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
