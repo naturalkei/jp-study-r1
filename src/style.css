@@ -803,6 +803,37 @@ body {
 }
 
 /* Pocket Mode Cards (Show to Staff) */
+.pocket-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.pocket-filter-pill {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pocket-filter-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.pocket-filter-pill.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
 .pocket-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -813,26 +844,61 @@ body {
   background: #ffffff;
   border: 2px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
 }
 
 .pocket-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 10px 20px -5px rgba(225, 29, 72, 0.12);
+}
+
+.pocket-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.pocket-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pocket-card-expand-btn {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--transition-fast);
+}
+
+.pocket-card-expand-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 .pocket-jp-big {
   font-family: var(--font-jp);
-  font-size: 1.45rem;
+  font-size: 1.42rem;
   font-weight: 800;
   color: var(--color-text-main);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   line-height: 1.35;
 }
 
@@ -844,9 +910,320 @@ body {
 }
 
 .pocket-ko-label {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--color-text-muted);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.pocket-card-footer-tip {
+  border-top: 1px dashed var(--color-border);
+  padding-top: 10px;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ==========================================================================
+   Pocket Card Fullscreen Modal Layer (크게보기 전면 레이어)
+   ========================================================================== */
+.pocket-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.pocket-modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pocket-modal-container {
+  width: 100%;
+  max-width: 600px;
+  max-height: 94vh;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.92) translateY(16px);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pocket-modal-overlay.active .pocket-modal-container {
+  transform: scale(1) translateY(0);
+}
+
+.pocket-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.pocket-modal-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pocket-modal-counter {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.pocket-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pocket-flip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pocket-flip-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.pocket-flip-btn.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.pocket-modal-close-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.pocket-modal-close-btn:hover {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.pocket-modal-card-scroll {
+  padding: 24px 20px;
+  overflow-y: auto;
+  max-height: calc(94vh - 190px);
+}
+
+.pocket-modal-card-body {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center center;
+}
+
+.pocket-modal-card-body.is-flipped {
+  transform: rotate(180deg);
+}
+
+.pocket-modal-clerk-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.84rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.pocket-modal-jp {
+  font-family: var(--font-jp);
+  font-weight: 800;
+  font-size: clamp(2.1rem, 6vw, 2.85rem);
+  line-height: 1.35;
+  color: #0f172a;
+  text-align: center;
+  margin: 12px 0 16px;
+  word-break: keep-all;
+  letter-spacing: -0.02em;
+}
+
+.pocket-modal-pron {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-align: center;
+  margin-bottom: 12px;
+  word-break: keep-all;
+}
+
+.pocket-modal-ko {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #334155;
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1.45;
+}
+
+.pocket-modal-context {
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.5;
+  text-align: center;
+  border: 1px dashed #cbd5e1;
+}
+
+.pocket-modal-audio-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pocket-modal-speaker-btn {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: linear-gradient(135deg, var(--color-primary), #be123c);
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.35);
+  transition: all var(--transition-fast);
+}
+
+.pocket-modal-speaker-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.pocket-modal-speaker-btn:active {
+  transform: scale(0.98);
+}
+
+.pocket-speed-selector-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.pocket-modal-speed-pill {
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.pocket-modal-speed-pill.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.pocket-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: #ffffff;
+}
+
+.pocket-modal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pocket-modal-nav-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: #fff1f2;
+}
+
+.pocket-modal-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pocket-modal-hint-text {
+  font-size: 0.76rem;
+  color: #94a3b8;
+  display: none;
+}
+
+@media (min-width: 520px) {
+  .pocket-modal-hint-text {
+    display: inline-block;
+  }
 }
 
 /* Roleplay Dialogue */
