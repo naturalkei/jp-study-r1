@@ -1,20 +1,22 @@
+// Daily Learning Milestones & Study Routine Data (Scrubbed of specific travel calendar dates/flight departure times)
+
 export const curriculumData = [
   {
     id: 'D-8',
     dayNumber: 8,
     date: '출국 8일 전',
-    title: '3대 마법 열쇠 & 숫자·돈 계산',
-    subtitle: '망설임 없이 0.5초 만에 나오는 생존 3단어와 엔화 계산법',
-    description: '일본어 왕초보 탈출의 첫걸음! 어떤 상황에서도 당황하지 않고 0.5초 만에 튀어나오는 마법의 3단어(스미마센, 코레 쿠다사이, 다이죠-부데스)와 엔화 계산을 익힙니다.',
-    badge: '마법 열쇠 획득 🗝️',
+    title: '일본어 왕초보 3대 마법 단어 & 만능 공식',
+    subtitle: '스미마센(すみません), 코레 쿠다사이(これ、ください), 다이죠-부(大丈夫)',
+    description: '여행 일본어의 80%는 3개 단어로 통합니다! 길을 묻거나 직원을 부를 때, 식당에서 주문할 때, 편의점에서 거절할 때 쓰는 골든 키워드를 체화합니다.',
+    badge: '생존 기초 완성 💡',
     routine: {
       morning: [
-        '마법 3단어(스미마센, 코레 쿠다사이, 다이죠-부데스) 소리 내어 10회 낭독하기',
-        '숫자 1부터 10까지 일본어로 세어보기 (이치, 니, 산, 욘, 고...)',
+        '3대 마법 단어 소리 내어 10회씩 낭독 (스미마센, 코레 쿠다사이, 다이죠-부데스)',
+        '한국어 뜻 가리고 일본어 3초 안에 떠올리기',
       ],
       lunch: [
-        '치트시트 탭에서 엔화 계산기(100엔, 500엔, 1,000엔, 5,000엔, 1만엔) 소리 듣기',
-        '오늘의 미니 퀴즈 풀기 (목표: 만점 달성)',
+        '1초 치트시트 페이지에서 "만능 5대 공식" 원터치 음성 1회 청취',
+        '숫자 1~10 및 엔화 계산기 탭하며 발음 익히기',
       ],
       night: [
         '플래시카드에서 기초 단어 5개 "외웠어요" 체크하기',
@@ -22,17 +24,17 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: 'すみません', furigana: 'すみません', pronounce: '스미마센', ko: '저기요 / 죄송합니다 / 감사합니다', note: '말 걸 때, 좁은 곳 지날 때, 물건 받을 때 만능!', audio: 'すみません' },
-      { jp: 'これ、ください', furigana: 'これ、ください', pronounce: '코레, 쿠다사이', ko: '이거 주세요', note: '손가락으로 메뉴판을 가리키며', audio: 'これ、ください' },
-      { jp: '大丈夫です', furigana: 'だいじょうぶです', pronounce: '다이죠-부데스', ko: '괜찮습니다 (No thank you / OK)', note: '봉투나 영수증 필요 없을 때 부드러운 거절', audio: '大丈夫です' },
-      { jp: 'いくらですか？', furigana: 'いくらですか？', pronounce: '이쿠라데스카?', ko: '얼마인가요?', note: '가격 확인할 때 필수 질문', audio: 'いくらですか？' },
+      { jp: 'すみません', furigana: 'すみません', pronounce: '스미마센', ko: '저기요 / 죄송합니다 / 감사합니다', en: "Excuse me / I'm sorry / Thank you", note: '말 걸 때, 좁은 곳 지날 때, 물건 받을 때 만능!', audio: 'すみません' },
+      { jp: 'これ、ください', furigana: 'これ、ください', pronounce: '코레, 쿠다사이', ko: '이거 주세요', en: 'This one, please.', note: '손가락으로 메뉴판을 가리키며', audio: 'これ、ください' },
+      { jp: '大丈夫です', furigana: 'だいじょうぶです', pronounce: '다이죠-부데스', ko: '괜찮습니다 (No thank you / OK)', en: "No, thank you / It's fine.", note: '봉투나 영수증 필요 없을 때 부드러운 거절', audio: '大丈夫です' },
+      { jp: 'いくらですか？', furigana: 'いくらですか？', pronounce: '이쿠라데스카?', ko: '얼마인가요?', en: 'How much is it?', note: '가격 확인할 때 필수 질문', audio: 'いくらですか？' },
     ],
     dialogue: {
       title: '계산대 앞에서 가격 묻기',
       lines: [
-        { speaker: '나', jp: 'すみません。これ、いくらですか？', pron: '스미마센. 코레, 이쿠라데스카?', ko: '저기요. 이거 얼마인가요?' },
-        { speaker: '점원', jp: '千円になります。', pron: '센엔니 나리마스.', ko: '1,000엔입니다.' },
-        { speaker: '나', jp: 'これ、ください。', pron: '코레, 쿠다사이.', ko: '이거 주세요.' },
+        { speaker: '나', jp: 'すみません。これ、いくらですか？', pron: '스미마센. 코레, 이쿠라데스카?', ko: '저기요. 이거 얼마인가요?', en: 'Excuse me. How much is this?' },
+        { speaker: '점원', jp: '千円になります。', pron: '센엔니 나리마스.', ko: '1,000엔입니다.', en: 'It will be 1,000 yen.' },
+        { speaker: '나', jp: 'これ、ください。', pron: '코레, 쿠다사이.', ko: '이거 주세요.', en: 'This one, please.' },
       ],
     },
     miniQuiz: [
@@ -75,18 +77,18 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: '観光です', furigana: 'かんこうです', pronounce: '칸코-데스', ko: '관광(여행)입니다', note: '입국 목적 질문에 0.1초 만에 답하는 최고의 정답', audio: '観光です' },
-      { jp: '3泊4日です', furigana: 'さんぱくよっかです', pronounce: '산파쿠 욧카데스', ko: '3박 4일입니다', note: '체류 기간 질문 답변', audio: '3泊4日です' },
-      { jp: '河口湖と上野のホテルです', furigana: 'かわぐちこと うえのの ホテルです', pronounce: '관광지토 우에노노 호테루데스', ko: '관광지와 우에노의 호텔입니다', note: '숙소 위치 답변 (예약 화면 함께 제시)', audio: '河口湖と上野のホテルです' },
-      { jp: '申告するものは何もありません', furigana: 'しんこくするものは なにも ありません', pronounce: '신코쿠스루 모노와 나니모 아리마센', ko: '신고할 물품은 아무것도 없습니다', note: '세관 통과 시 답변', audio: '申告するものは何もありません' },
+      { jp: '観光です', furigana: 'かんこうです', pronounce: '칸코-데스', ko: '관광(여행)입니다', en: 'Sightseeing / Vacation.', note: '입국 목적 질문에 0.1초 만에 답하는 최고의 정답', audio: '観光です' },
+      { jp: '3泊4日です', furigana: 'さんぱくよっかです', pronounce: '산파쿠 욧카데스', ko: '3박 4일입니다', en: 'For 4 days (3 nights, 4 days).', note: '체류 기간 질문 답변', audio: '3泊4日です' },
+      { jp: '河口湖と上野のホテルです', furigana: 'かわぐちこと うえのの ホテルです', pronounce: '관광지토 우에노노 호테루데스', ko: '관광지와 우에노의 호텔입니다', en: 'Hotels in Kawaguchiko and Ueno.', note: '숙소 위치 답변 (예약 화면 함께 제시)', audio: '河口湖と上野のホテルです' },
+      { jp: '申告するものは何もありません', furigana: 'しんこくするものは なにも ありません', pronounce: '신코쿠스루 모노와 나니모 아리마센', ko: '신고할 물품은 아무것도 없습니다', en: 'Nothing to declare.', note: '세관 통과 시 답변', audio: '申告するものは何もありません' },
     ],
     dialogue: {
       title: '나리타 공항 입국 심사대',
       lines: [
-        { speaker: '심사관', jp: '入国の目的は何ですか？', pron: '뉴-코쿠노 모쿠테키와 난데스카?', ko: '입국 목적이 무엇인가요?' },
-        { speaker: '나', jp: '観光です。', pron: '칸코-데스.', ko: '관광입니다.' },
-        { speaker: '심사관', jp: '何日間滞在しますか？', pron: '난니치칸 타이자이 시마스카?', ko: '며칠 동안 체류하시나요?' },
-        { speaker: '나', jp: '3泊4日です。', pron: '산파쿠 욧카데스.', ko: '3박 4일입니다.' },
+        { speaker: '심사관', jp: '入国の目的は何ですか？', pron: '뉴-코쿠노 모쿠테키와 난데스카?', ko: '입국 목적이 무엇인가요?', en: 'What is the purpose of your visit?' },
+        { speaker: '나', jp: '観光です。', pron: '칸코-데스.', ko: '관광입니다.', en: 'Sightseeing.' },
+        { speaker: '심사관', jp: '何日間滞在しますか？', pron: '난니치칸 타이자이 시마스카?', ko: '며칠 동안 체류하시나요?', en: 'How long will you stay?' },
+        { speaker: '나', jp: '3泊4日です。', pron: '산파쿠 욧카데스.', ko: '3박 4일입니다.', en: 'For 4 days (3 nights, 4 days).' },
       ],
     },
     miniQuiz: [
@@ -129,16 +131,16 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: '河口湖行きのバスのチケットを2枚ください', furigana: 'かわぐちこゆきの バスの チケットを にまい ください', pronounce: '관광지 유키노 바스노 치켓토오 니마이 쿠다사이', ko: '관광지행 버스표 2장 주세요', note: '버스 매표소 창구에서 즉시 사용', audio: '河口湖行きのバスのチケットを2枚ください' },
-      { jp: '乗り場は何番ですか？', furigana: 'のりばは なんばんですか？', pronounce: '노리바와 난반데스카?', ko: '타는 곳은 몇 번인가요?', note: '버스 승강장 확인할 때', audio: '乗り場は何番ですか？' },
-      { jp: 'Suicaをチャージしたいです', furigana: 'スイカを チャージしたいです', pronounce: '스이카오 챠-지 시타이데스', ko: '스이카(교통카드)를 충전하고 싶습니다', note: '역 창구 또는 편의점에서', audio: 'Suicaをチャージしたいです' },
+      { jp: '河口湖行きのバスのチケットを2枚ください', furigana: 'かわぐちこゆきの バスの チケットを にまい ください', pronounce: '관광지 유키노 바스노 치켓토오 니마이 쿠다사이', ko: '관광지행 버스표 2장 주세요', en: 'Two tickets for the Kawaguchiko bus, please.', note: '버스 매표소 창구에서 즉시 사용', audio: '河口湖行きのバスのチケットを2枚ください' },
+      { jp: '乗り場は何番ですか？', furigana: 'のりばは なんばんですか？', pronounce: '노리바와 난반데스카?', ko: '타는 곳은 몇 번인가요?', en: 'Which platform / bus stop is it?', note: '버스 승강장 확인할 때', audio: '乗り場は何番ですか？' },
+      { jp: 'Suicaをチャージしたいです', furigana: 'スイカを チャージしたいです', pronounce: '스이카오 챠-지 시타이데스', ko: '스이카(교통카드)를 충전하고 싶습니다', en: 'I would like to charge my Suica card.', note: '역 창구 또는 편의점에서', audio: 'Suicaをチャージしたいです' },
     ],
     dialogue: {
       title: '공항 고속버스 매표 창구',
       lines: [
-        { speaker: '나', jp: 'すみません。河口湖行きのバスのチケットを2枚お願いします。', pron: '스미마센. 관광지 유키노 바스노 치켓토오 니마이 오네가이시마스.', ko: '저기요. 관광지행 버스표 2장 부탁합니다.' },
-        { speaker: '직원', jp: '3番乗り場になります。', pron: '산반 노리바니 나리마스.', ko: '3번 승강장입니다.' },
-        { speaker: '나', jp: 'ありがとうございます！', pron: '아리가토- 고자이마스!', ko: '감사합니다!' },
+        { speaker: '나', jp: 'すみません。河口湖行きのバスのチケットを2枚お願いします。', pron: '스미마센. 관광지 유키노 바스노 치켓토오 니마이 오네가이시마스.', ko: '저기요. 관광지행 버스표 2장 부탁합니다.', en: 'Excuse me. Two tickets for the Kawaguchiko bus, please.' },
+        { speaker: '직원', jp: '3番乗り場になります。', pron: '산반 노리바니 나리마스.', ko: '3번 승강장입니다.', en: 'It will be Bus Stop #3.' },
+        { speaker: '나', jp: 'ありがとうございます！', pron: '아리가토- 고자이마스!', ko: '감사합니다!', en: 'Thank you very much!' },
       ],
     },
     miniQuiz: [
@@ -174,17 +176,17 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: 'チェックイン前に荷物を預けることはできますか？', furigana: 'チェックインまえに にもつを あずけることは できますか？', pronounce: '체크인 마에니 니모츠오 아즈케루 코토와 데키마스카?', ko: '체크인 전에 짐을 맡길 수 있나요?', note: '호텔 도착 후 짐 먼저 보관할 때', audio: 'チェックイン前に荷物を預けることはできますか？' },
-      { jp: '袋は大丈夫です', furigana: 'ふくろは だいじょうぶです', pronounce: '후쿠로와 다이죠-부데스', ko: '봉투는 필요 없습니다', note: '편의점 봉투 거절 표현', audio: '袋は大丈夫です' },
-      { jp: '温めてもらえますか？', furigana: 'あたためてもらえますか？', pronounce: '아타타메테 모라에마스카?', ko: '데워주실 수 있나요?', note: '도시락 데우기 요청', audio: '温めてもらえますか？' },
+      { jp: 'チェックイン前に荷物を預けることはできますか？', furigana: 'チェックインまえに にもつを あずけることは できますか？', pronounce: '체크인 마에니 니모츠오 아즈케루 코토와 데키마스카?', ko: '체크인 전에 짐을 맡길 수 있나요?', en: 'Can I leave my luggage before check-in?', note: '호텔 도착 후 짐 먼저 보관할 때', audio: 'チェックイン前に荷物を預けることはできますか？' },
+      { jp: '袋は大丈夫です', furigana: 'ふくろは だいじょうぶです', pronounce: '후쿠로와 다이죠-부데스', ko: '봉투는 필요 없습니다', en: 'No bag needed, thank you.', note: '편의점 봉투 거절 표현', audio: '袋は大丈夫です' },
+      { jp: '温めてもらえますか？', furigana: 'あたためてもらえますか？', pronounce: '아타타메테 모라에마스카?', ko: '데워주실 수 있나요?', en: 'Could you heat this up for me?', note: '도시락 데우기 요청', audio: '温めてもらえますか？' },
     ],
     dialogue: {
       title: '관광지 로손 편의점 계산대',
       lines: [
-        { speaker: '점원', jp: 'お弁当、温めますか？', pron: '오벤토-, 아타타메마스카?', ko: '도시락 데워드릴까요?' },
-        { speaker: '나', jp: 'はい、お願いします。', pron: '하이, 오네가이시마스.', ko: '네, 부탁드립니다.' },
-        { speaker: '점원', jp: '袋はおつけしますか？', pron: '후쿠로와 오츠케시마스카?', ko: '봉투 필요하세요?' },
-        { speaker: '나', jp: '大丈夫です。', pron: '다이죠-부데스.', ko: '괜찮습니다.' },
+        { speaker: '점원', jp: 'お弁当、温めますか？', pron: '오벤토-, 아타타메마스카?', ko: '도시락 데워드릴까요?', en: 'Would you like your meal heated?' },
+        { speaker: '나', jp: 'はい、お願いします。', pron: '하이, 오네가이시마스.', ko: '네, 부탁드립니다.', en: 'Yes, please.' },
+        { speaker: '점원', jp: '袋はおつけしますか？', pron: '후쿠로와 오츠케시마스카?', ko: '봉투 필요하세요?', en: 'Would you like a plastic bag?' },
+        { speaker: '나', jp: '大丈夫です。', pron: '다이죠-부데스.', ko: '괜찮습니다.', en: "No, that's fine." },
       ],
     },
     miniQuiz: [
@@ -220,17 +222,17 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: '2人です', furigana: 'ふたりです', pronounce: '후타리데스', ko: '2명입니다', note: '식당 입장 시 인원 말하기', audio: '2人です' },
-      { jp: 'おすすめは何ですか？', furigana: 'おすすめは なんですか？', pronounce: '오스스메와 난데스카?', ko: '추천 메뉴가 무엇인가요?', note: '인기 메뉴 물을 때', audio: 'おすすめは何ですか？' },
-      { jp: '名物ほうとうを2つお願いします', furigana: 'めいぶつほうとうを ふたつ おねがいします', pronounce: '메-부츠 호-토-오 후타츠 오네가이시마스', ko: '명물 호우토우 2개 부탁합니다', note: '관광지 대표 요리 주문', audio: '名物ほうとうを2つお願いします' },
-      { jp: 'お会計をお願いします', furigana: 'おかいけいを おねがいします', pronounce: '오카이케이오 오네가이시마스', ko: '계산서 부탁합니다', note: '식사 후 계산 요청', audio: 'お会計をお願いします' },
+      { jp: '2人です', furigana: 'ふたりです', pronounce: '후타리데스', ko: '2명입니다', en: 'Table for two, please.', note: '식당 입장 시 인원 말하기', audio: '2人です' },
+      { jp: 'おすすめは何ですか？', furigana: 'おすすめは なんですか？', pronounce: '오스스메와 난데스카?', ko: '추천 메뉴가 무엇인가요?', en: 'What do you recommend?', note: '인기 메뉴 물을 때', audio: 'おすすめは何ですか？' },
+      { jp: '名物ほうとうを2つお願いします', furigana: 'めいぶつほうとうを ふたつ おねがいします', pronounce: '메-부츠 호-토-오 후타츠 오네가이시마스', ko: '명물 호우토우 2개 부탁합니다', en: 'Two Hoto noodles, please.', note: '관광지 대표 요리 주문', audio: '名物ほうとうを2つお願いします' },
+      { jp: 'お会計をお願いします', furigana: 'おかいけいを おねがいします', pronounce: '오카이케이오 오네가이시마스', ko: '계산서 부탁합니다', en: 'Check, please.', note: '식사 후 계산 요청', audio: 'お会計をお願いします' },
     ],
     dialogue: {
       title: '관광지 호우토우 맛집',
       lines: [
-        { speaker: '점원', jp: 'いらっしゃいませ！何名様ですか？', pron: '이랏샤이마세! 난메-사마데스카?', ko: '어서오세요! 몇 분이세요?' },
-        { speaker: '나', jp: '2人です。', pron: '후타리데스.', ko: '2명입니다.' },
-        { speaker: '나', jp: '名物ほうとう2つと、お冷をください。', pron: '메-부츠 호-토- 후타츠토 오히야오 쿠다사이.', ko: '명물 호우토우 2개랑 찬물 주세요.' },
+        { speaker: '점원', jp: 'いらっしゃいませ！何名様ですか？', pron: '이랏샤이마세! 난메-사마데스카?', ko: '어서오세요! 몇 분이세요?', en: 'Welcome! How many in your party?' },
+        { speaker: '나', jp: '2人です。', pron: '후타리데스.', ko: '2명입니다.', en: 'Table for two, please.' },
+        { speaker: '나', jp: '名物ほうとう2つと、お冷をください。', pron: '메-부츠 호-토- 후타츠토 오히야오 쿠다사이.', ko: '명물 호우토우 2개랑 찬물 주세요.', en: 'Two Hoto noodles and cold water, please.' },
       ],
     },
     miniQuiz: [
@@ -266,14 +268,14 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: 'スパは何時から何時までですか？', furigana: 'スパは なんじから なんじまでですか？', pronounce: '스파와 난지카라 난지마데데스카?', ko: '스파는 몇 시부터 몇 시까지인가요?', note: '칸데오 호텔 스카이스파 이용 시간 확인', audio: 'スパは何時から何時までですか？' },
-      { jp: 'バスタオルをもう1枚いただけますか？', furigana: 'バスタオルを もういちまい いただけますか？', pronounce: '바스타오루오 모- 이치마이 이타다케마스카?', ko: '바스타월 한 장 더 주실 수 있나요?', note: '수건 추가 요청', audio: 'バスタオルをもう1枚いただけますか？' },
+      { jp: 'スパは何時から何時までですか？', furigana: 'スパは なんじから なんじまでですか？', pronounce: '스파와 난지카라 난지마데데스카?', ko: '스파는 몇 시부터 몇 시까지인가요?', en: 'What are the spa opening hours?', note: '칸데오 호텔 스카이스파 이용 시간 확인', audio: 'スパは何時から何時までですか？' },
+      { jp: 'バスタオルをもう1枚いただけますか？', furigana: 'バスタオルを もういちまい いただけますか？', pronounce: '바스타오루오 모- 이치마이 이타다케마스카?', ko: '바스타월 한 장 더 주실 수 있나요?', en: 'Could I have one more bath towel, please?', note: '수건 추가 요청', audio: 'バスタオルをもう1枚いただけますか？' },
     ],
     dialogue: {
       title: '칸데오 호텔 우에노 프런트',
       lines: [
-        { speaker: '나', jp: 'すみません。スパは何階ですか？何時までですか？', pron: '스미마센. 스파와 난카이데스카? 난지마데데스카?', ko: '실례합니다. 스파는 몇 층이고 몇 시까지인가요?' },
-        { speaker: '직원', jp: '14階でございます。翌朝11時までご利用いただけます。', pron: '쥬-욘카이데 고자이마스. 요쿠아사 쥬-이치지마데 고리요- 이타다케마스.', ko: '14층입니다. 다음 날 아침 11시까지 이용 가능합니다.' },
+        { speaker: '나', jp: 'すみません。スパは何階ですか？何時までですか？', pron: '스미마센. 스파와 난카이데스카? 난지마데데스카?', ko: '실례합니다. 스파는 몇 층이고 몇 시까지인가요?', en: 'Excuse me. Which floor is the spa on, and what time does it close?' },
+        { speaker: '직원', jp: '14階でございます。翌朝11時までご利用いただけます。', pron: '쥬-욘카이데 고자이마스. 요쿠아사 쥬-이치지마데 고리요- 이타다케마스.', ko: '14층입니다. 다음 날 아침 11시까지 이용 가능합니다.', en: 'It is on the 14th floor. Open until 11 AM tomorrow morning.' },
       ],
     },
     miniQuiz: [
@@ -309,15 +311,15 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: '免税はできますか？', furigana: 'めんぜいは できますか？', pronounce: '멘제-와 데키마스카?', ko: '면세 되나요?', note: '5,000엔 이상 쇼핑 시 필수 확인', audio: '免税はできますか？' },
-      { jp: '免税カウンターはどこですか？', furigana: 'めんぜいカウンターは どこですか？', pronounce: '멘제- 카운타-와 도코데스카?', ko: '면세 카운터는 어디인가요?', note: '전용 면세 창구 찾기', audio: '免税カウンターはどこですか？' },
-      { jp: 'これ、在庫ありますか？', furigana: 'これ、ざいこ ありますか？', pronounce: '코레, 자이코 아리마스카?', ko: '이거 재고 있나요?', note: '사진 보여주며 재고 확인', audio: 'これ、在庫ありますか？' },
+      { jp: '免税はできますか？', furigana: 'めんぜいは できますか？', pronounce: '멘제-와 데키마스카?', ko: '면세 되나요?', en: 'Is tax-free available?', note: '5,000엔 이상 쇼핑 시 필수 확인', audio: '免税はできますか？' },
+      { jp: '免税カウンターはどこですか？', furigana: 'めんぜいカウンターは どこですか？', pronounce: '멘제- 카운타-와 도코데스카?', ko: '면세 카운터는 어디인가요?', en: 'Where is the tax-free counter?', note: '전용 면세 창구 찾기', audio: '免税カウンターはどこですか？' },
+      { jp: 'これ、在庫ありますか？', furigana: 'これ、ざいこ ありますか？', pronounce: '코레, 자이코 아리마스카?', ko: '이거 재고 있나요?', en: 'Do you have this in stock?', note: '사진 보여주며 재고 확인', audio: 'これ、在庫ありますか？' },
     ],
     dialogue: {
       title: '우에노 돈키호테 계산대',
       lines: [
-        { speaker: '나', jp: '免税会計をお願いします。パスポートあります。', pron: '멘제- 카이케이오 오네가이시마스. 파스포-토 아리마스.', ko: '면세 계산 부탁합니다. 여권 있습니다.' },
-        { speaker: '점원', jp: 'かしこまりました。パスポートをお預かりします。', pron: '카시코마리마시타. 파스포-토오 오아즈카리 시마스.', ko: '알겠습니다. 여권 확인하겠습니다.' },
+        { speaker: '나', jp: '免税会計をお願いします。パスポートあります。', pron: '멘제- 카이케이오 오네가이시마스. 파스포-토 아리마스.', ko: '면세 계산 부탁합니다. 여권 있습니다.', en: 'Tax-free checkout, please. I have my passport.' },
+        { speaker: '점원', jp: 'かしこまりました。パスポートをお預かりします。', pron: '카시코마리마시타. 파스포-토오 오아즈카리 시마스.', ko: '알겠습니다. 여권 확인하겠습니다.', en: 'Certainly. May I have your passport, please.' },
       ],
     },
     miniQuiz: [
@@ -353,15 +355,15 @@ export const curriculumData = [
       ],
     },
     keyPhrases: [
-      { jp: 'とりあえず生ビール2つお願いします！', furigana: 'とりあえず なまビール ふたつ おねがいします！', pronounce: '토리아에즈 나마비-루 후타츠 오네가이시마스!', ko: '우선 생맥주 2잔 부탁합니다!', note: '이자카야 착석 즉시 외치는 현지인 대사', audio: 'とりあえず生ビール2つお願いします' },
-      { jp: '成田空港までのスカイライナーを2枚お願いします', furigana: 'なりたくうこうまでの スカイライナーを にまい おねがいします', pronounce: '나리타 쿠-코-마데노 스카이라이나-오 니마이 오네가이시마스', ko: '나리타 공항행 스카이라이너 2장 부탁합니다', note: '게이세이 우에노역 매표소에서 사용', audio: '成田空港までのスカイライナーを2枚お願いします' },
-      { jp: 'トイレはどこですか？', furigana: 'トイレは どこですか？', pronounce: '토이레와 도코데스카?', ko: '화장실은 어디인가요?', note: '여행 중 가장 급할 때', audio: 'トイレはどこですか？' },
+      { jp: 'とりあえず生ビール2つお願いします！', furigana: 'とりあえず なまビール ふたつ おねがいします！', pronounce: '토리아에즈 나마비-루 후타츠 오네가이시마스!', ko: '우선 생맥주 2잔 부탁합니다!', en: 'Two draft beers to start, please!', note: '이자카야 착석 즉시 외치는 현지인 대사', audio: 'とりあえず生ビール2つお願いします' },
+      { jp: '成田空港までのスカイライナーを2枚お願いします', furigana: 'なりたくうこうまでの スカイライナーを にまい おねがいします', pronounce: '나리타 쿠-코-마데노 스카이라이나-오 니마이 오네가이시마스', ko: '나리타 공항행 스카이라이너 2장 부탁합니다', en: 'Two Skyliner tickets to Narita Airport, please.', note: '게이세이 우에노역 매표소에서 사용', audio: '成田空港までのスカイライナーを2枚お願いします' },
+      { jp: 'トイレはどこですか？', furigana: 'トイレは どこですか？', pronounce: '토이레와 도코데스카?', ko: '화장실은 어디인가요?', en: 'Where is the restroom?', note: '여행 중 가장 급할 때', audio: 'トイレはどこですか？' },
     ],
     dialogue: {
       title: '게이세이 우에노역 매표소',
       lines: [
-        { speaker: '나', jp: '成田空港までのスカイライナーを2枚お願いします。一番早い時間で。', pron: '나리타 쿠-코-마데노 스카이라이나-오 니마이 오네가이시마스. 이치방 하야이 지칸데.', ko: '나리타 공항행 스카이라이너 2장 부탁합니다. 제일 빠른 시간으로요.' },
-        { speaker: '직원', jp: '1番線から発車します。', pron: '이치반센카라 핫샤시마스.', ko: '1번선에서 출발합니다.' },
+        { speaker: '나', jp: '成田空港までのスカイライナーを2枚お願いします。一番早い時間で。', pron: '나리타 쿠-코-마데노 스카이라이나-오 니마이 오네가이시마스. 이치방 하야이 지칸데.', ko: '나리타 공항행 스카이라이너 2장 부탁합니다. 제일 빠른 시간으로요.', en: 'Two Skyliner tickets to Narita Airport, please. Earliest time.' },
+        { speaker: '직원', jp: '1番線から発車します。', pron: '이치반센카라 핫샤시마스.', ko: '1번선에서 출발합니다.', en: 'It departs from Track 1.' },
       ],
     },
     miniQuiz: [
@@ -388,14 +390,14 @@ export const curriculumData = [
       night: ['오늘 하루 성공적으로 말한 일본어 회상해보기!'],
     },
     keyPhrases: [
-      { jp: 'ありがとうございます', furigana: 'ありがとうございます', pronounce: '아리가토- 고자이마스', ko: '감사합니다', note: '가장 따뜻한 감사 인사', audio: 'ありがとうございます' },
-      { jp: 'ごちそうさまでした', furigana: 'ごちそうさまでした', pronounce: '고치소-사마데시타', ko: '잘 먹었습니다', note: '식당 문 나설 때 인사 매너', audio: 'ごちそうさまでした' },
+      { jp: 'ありがとうございます', furigana: 'ありがとうございます', pronounce: '아리가토- 고자이마스', ko: '감사합니다', en: 'Thank you very much.', note: '가장 따뜻한 감사 인사', audio: 'ありがとうございます' },
+      { jp: 'ごちそうさまでした', furigana: 'ごちそうさまでした', pronounce: '고치소-사마데시타', ko: '잘 먹었습니다', en: 'Thank you for the delicious meal.', note: '식당 문 나설 때 인사 매너', audio: 'ごちそうさまでした' },
     ],
     dialogue: {
       title: '식당 문을 나서며',
       lines: [
-        { speaker: '나', jp: 'ごちそうさまでした！美味しかったです。', pron: '고치소-사마데시타! 오이시캇타데스.', ko: '잘 먹었습니다! 맛있었어요.' },
-        { speaker: '점원', jp: 'ありがとうございました！またお越しくださいませ。', pron: '아리가토- 고자이마시타! 마타 오코시 쿠다사이마세.', ko: '감사했습니다! 또 오세요.' },
+        { speaker: '나', jp: 'ごちそうさまでした！美味しかったです。', pron: '고치소-사마데시타! 오이시캇타데스.', ko: '잘 먹었습니다! 맛있었어요.', en: 'Thank you for the meal! It was delicious.' },
+        { speaker: '점원', jp: 'ありがとうございました！またお越しくださいませ。', pron: '아리가토- 고자이마시타! 마타 오코시 쿠다사이마세.', ko: '감사했습니다! 또 오세요.', en: 'Thank you very much! Please come again.' },
       ],
     },
     miniQuiz: [
@@ -404,7 +406,7 @@ export const curriculumData = [
         audio: 'ごちそうさまでした',
         options: ['ごちそうさまでした (고치소-사마데시타)', 'いただきます (이타다키마스)', 'すみません (스미마센)'],
         answer: 0,
-        explanation: '식사 전에는 「いただきます (잘 먹겠습니다)」, 식사 후에는 「ごちそうさまでした (잘 먹었습니다)」입니다.',
+        explanation: '식사 전에는 「いただきます (잘 먹겠습니다)」, 식사 후에는 「ごちそうさ bride (잘 먹었습니다)」입니다.',
       },
     ],
   },
