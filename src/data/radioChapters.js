@@ -10,18 +10,18 @@ export const radioChapters = [
     audioFile: 'ch01-magic-words-yen.mp3',
     available: true,
     segments: [
-      { time: '0:00', title: '인트로' },
-      { time: '0:42', title: '마법 단어 1: すみません (스미마셍)' },
-      { time: '3:26', title: '마법 단어 2: これ、ください (코레, 쿠다사이)' },
-      { time: '5:49', title: '마법 단어 3: 大丈夫です (다이죠오부데스)' },
-      { time: '8:28', title: '편의점 대화 실습' },
-      { time: '11:44', title: '식당 주문 실습' },
-      { time: '14:49', title: '숫자 1~10' },
-      { time: '18:48', title: '숫자 10단위' },
-      { time: '20:29', title: '엔화 — 백 단위' },
-      { time: '24:30', title: '엔화 — 천·만 단위' },
-      { time: '26:24', title: '퀴즈' },
-      { time: '27:22', title: '복습 & 마무리' }
+      { time: '0:02', title: '인트로' },
+      { time: '1:35', title: '마법 단어 1: すみません (스미마셍)' },
+      { time: '3:26', title: '오사카 보너스: おおきに (오-키니)' },
+      { time: '4:03', title: '마법 단어 2: これ、ください (코레, 쿠다사이)' },
+      { time: '5:55', title: '마법 단어 3: 大丈夫です (다이죠-부데스)' },
+      { time: '9:02', title: '편의점 대화' },
+      { time: '10:57', title: '식당 대화' },
+      { time: '12:57', title: '숫자 1~10' },
+      { time: '15:57', title: '십 단위' },
+      { time: '16:53', title: '엔화 백·천·만' },
+      { time: '23:35', title: '듣기 퀴즈' },
+      { time: '26:20', title: '복습 & 다음 화 예고' }
     ]
   },
   {
