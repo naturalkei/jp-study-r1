@@ -130,7 +130,14 @@ const state = {
   // Radio State
   radioCurrentChapterId: initialRoute.params.chapter || 'ch01',
   radioSpeed: storage.getRadioSpeed(),
+  radioRepeatMode: storage.getRadioRepeatMode(),
+  radioABPoints: { a: null, b: null },
+  radioSegmentRepeat: null,
+  radioIsPlaying: false,
+  radioShowPlaylist: false,
 };
+
+let globalAudioElement = null;
 
 // Initialize Speech System
 initSpeech();
@@ -152,6 +159,38 @@ function renderApp() {
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="app-container">
+      <div class="global-mini-player" id="global-mini-player">
+        <button type="button" class="mini-btn" id="mini-play" aria-label="재생 또는 일시정지">
+          <span data-play-icon class="mini-glyph">▶</span>
+          <span data-pause-icon class="mini-glyph" style="display:none;">❚❚</span>
+        </button>
+        <button type="button" class="mini-btn" id="mini-back" aria-label="15초 뒤로">−15</button>
+        <button type="button" class="mini-main" id="mini-open-playlist" aria-label="재생목록 열기">
+          <span class="mini-kicker">오디오 학습</span>
+          <span class="mini-title" id="mini-title">에피소드를 선택하세요</span>
+          <span class="mini-time" id="mini-time">0:00</span>
+        </button>
+        <button type="button" class="mini-btn" id="mini-forward" aria-label="15초 앞으로">+15</button>
+        <button type="button" class="mini-btn mini-repeat" id="mini-repeat" aria-label="반복 모드 변경">
+          <span class="mini-repeat-label">끄기</span>
+        </button>
+        <button type="button" class="mini-btn" id="mini-playlist" aria-label="재생목록" aria-expanded="false">☰</button>
+        <div class="mini-progress" id="mini-progress">
+          <div class="mini-ab-range" id="mini-ab-range"></div>
+          <span class="mini-ab-marker marker-a" id="mini-ab-a"></span>
+          <span class="mini-ab-marker marker-b" id="mini-ab-b"></span>
+          <div class="mini-progress-fill" id="mini-progress-fill"></div>
+        </div>
+      </div>
+      <div class="playlist-panel" id="playlist-panel" hidden>
+        <div class="playlist-toolbar">
+          <strong>재생목록</strong>
+          <button type="button" id="pl-back">−15초</button>
+          <button type="button" id="pl-forward">+15초</button>
+          <button type="button" id="pl-close">닫기</button>
+        </div>
+        <div id="playlist-items"></div>
+      </div>
       <header class="app-header">
         <div class="header-top">
           <div class="logo-group">
@@ -233,6 +272,7 @@ function renderApp() {
   `;
 
   attachHeaderEvents();
+  initGlobalRadioPlayer();
   renderCurrentTab();
 }
 
@@ -287,6 +327,14 @@ function attachHeaderEvents() {
           state.numbersSubTab = route.params.sub;
         } else if (route.tab === 'flashcards' && route.params.mode) {
           state.flashcardViewMode = route.params.mode;
+        } else if (route.tab === 'radio' && route.params.chapter) {
+          const ep = radioChapters.find((ch) => ch.id === route.params.chapter);
+          if (ep && ep.available && ep.id !== state.radioCurrentChapterId) {
+            const playing = globalAudioElement && !globalAudioElement.paused;
+            loadEpisode(ep.id, { autoplay: !!playing, restore: true });
+          } else if (ep) {
+            state.radioCurrentChapterId = ep.id;
+          }
         }
         switchTab(route.tab, false);
       } else {
@@ -303,6 +351,14 @@ function attachHeaderEvents() {
           }
           if (route.params.mode && route.params.mode !== state.roleplayViewMode) {
             state.roleplayViewMode = route.params.mode;
+            needsRender = true;
+          }
+        }
+        if (route.tab === 'radio' && route.params.chapter && route.params.chapter !== state.radioCurrentChapterId) {
+          const ep = radioChapters.find((ch) => ch.id === route.params.chapter);
+          if (ep && ep.available) {
+            const playing = globalAudioElement && !globalAudioElement.paused;
+            loadEpisode(ep.id, { autoplay: !!playing, restore: true });
             needsRender = true;
           }
         }
@@ -4464,13 +4520,667 @@ function attachBackupModalEvents() {
 // ---------------------------------------------------------------------------
 // 9. Radio (오디오 학습)
 // ---------------------------------------------------------------------------
-function renderRadio(container) {
-  const currentChapter = radioChapters.find((ch) => ch.id === state.radioCurrentChapterId) || radioChapters[0];
-  const currentIndex = radioChapters.findIndex((ch) => ch.id === currentChapter.id);
-  const nextChapter = currentIndex < radioChapters.length - 1 ? radioChapters[currentIndex + 1] : null;
+let audioLoadToken = 0;
 
+function getEpisodeById(id) {
+  return radioChapters.find((ep) => ep.id === id) || null;
+}
+
+function getOrderedEpisodes() {
+  const ordered = [];
+  radioChapters.filter((ep) => ep.type !== 'dialogue').forEach((ep) => {
+    ordered.push(ep);
+    radioChapters
+      .filter((item) => item.type === 'dialogue' && item.afterChapter === ep.id)
+      .forEach((item) => ordered.push(item));
+  });
+  radioChapters.forEach((ep) => {
+    if (!ordered.includes(ep)) ordered.push(ep);
+  });
+  return ordered;
+}
+
+function getAvailableEpisodes() {
+  return getOrderedEpisodes().filter((ep) => ep.available && ep.audioFile);
+}
+
+function getNextAvailable(id) {
+  const available = getAvailableEpisodes();
+  const idx = available.findIndex((ep) => ep.id === id);
+  if (idx < 0) return available[0] || null;
+  return available[idx + 1] || null;
+}
+
+function episodeLabel(ep) {
+  if (!ep) return '오디오 학습';
+  if (ep.type === 'dialogue') return `실전 다이얼로그 · ${ep.title}`;
+  return `Ch ${ep.number} · ${ep.title}`;
+}
+
+function audioSrcFor(ep) {
   const basePath = import.meta.env.BASE_URL || '/';
-  const audioPath = currentChapter.audioFile ? `${basePath}audio/${currentChapter.audioFile}` : null;
+  return `${basePath}audio/${ep.audioFile}`;
+}
+
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function parseTimeToSeconds(timeStr) {
+  const parts = String(timeStr || '').split(':').map((part) => parseInt(part, 10));
+  if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+    return parts[0] * 60 + parts[1];
+  }
+  return 0;
+}
+
+function ensureGlobalAudio() {
+  if (globalAudioElement) return globalAudioElement;
+  const audio = document.createElement('audio');
+  audio.id = 'global-radio-audio';
+  audio.preload = 'metadata';
+  audio.playsInline = true;
+  audio.setAttribute('playsinline', '');
+  audio.setAttribute('webkit-playsinline', '');
+  document.body.appendChild(audio);
+
+  audio.addEventListener('timeupdate', () => {
+    handleLoopPoints(audio);
+    const ep = getEpisodeById(audio.dataset.episodeId);
+    if (ep && Number.isFinite(audio.duration) && audio.currentTime > 5) {
+      storage.setRadioProgress(ep.id, audio.currentTime, audio.duration);
+    }
+    syncPlaybackUi();
+  });
+  audio.addEventListener('play', () => {
+    state.radioIsPlaying = true;
+    syncPlayIcons(true);
+    updateMediaSession(getEpisodeById(audio.dataset.episodeId), audio);
+  });
+  audio.addEventListener('pause', () => {
+    state.radioIsPlaying = false;
+    syncPlayIcons(false);
+  });
+  audio.addEventListener('ended', onAudioEnded);
+
+  globalAudioElement = audio;
+  bindMediaSession(audio);
+  return audio;
+}
+
+let loopSeeking = false;
+
+function handleLoopPoints(audio) {
+  if (loopSeeking || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+  const ep = getEpisodeById(audio.dataset.episodeId);
+  if (state.radioABPoints.a != null && state.radioABPoints.b != null && state.radioABPoints.b > state.radioABPoints.a) {
+    if (audio.currentTime >= state.radioABPoints.b - 0.05) {
+      loopSeeking = true;
+      audio.currentTime = state.radioABPoints.a;
+      loopSeeking = false;
+    }
+    return;
+  }
+  if (state.radioSegmentRepeat == null || !ep || !ep.segments[state.radioSegmentRepeat]) return;
+  const seg = ep.segments[state.radioSegmentRepeat];
+  const next = ep.segments[state.radioSegmentRepeat + 1];
+  const start = parseTimeToSeconds(seg.time);
+  const end = next ? parseTimeToSeconds(next.time) : audio.duration;
+  if (end > start + 0.2 && audio.currentTime >= end - 0.05) {
+    loopSeeking = true;
+    audio.currentTime = start;
+    loopSeeking = false;
+  }
+}
+
+function loadEpisode(id, { autoplay = false, restore = true } = {}) {
+  const ep = getEpisodeById(id);
+  if (!ep || !ep.available || !ep.audioFile) return false;
+  const audio = ensureGlobalAudio();
+  const changing = audio.dataset.episodeId !== id;
+  state.radioCurrentChapterId = id;
+  if (!changing) {
+    audio.playbackRate = state.radioSpeed;
+    updateMediaSession(ep, audio);
+    syncPlaybackUi();
+    if (autoplay && audio.paused) audio.play().catch(() => {});
+    return true;
+  }
+
+  state.radioABPoints = { a: null, b: null };
+  state.radioSegmentRepeat = null;
+  const token = ++audioLoadToken;
+  audio.dataset.episodeId = id;
+  audio.dataset.loadToken = String(token);
+  audio.src = audioSrcFor(ep);
+  audio.playbackRate = state.radioSpeed;
+
+  const onMeta = () => {
+    audio.removeEventListener('loadedmetadata', onMeta);
+    if (token !== audioLoadToken) return;
+    if (restore) {
+      const saved = storage.getRadioProgress(id);
+      if (saved.currentTime > 0 && Number.isFinite(audio.duration) && saved.currentTime < audio.duration - 5) {
+        audio.currentTime = saved.currentTime;
+      }
+    }
+    updateMediaSession(ep, audio);
+    syncPlaybackUi();
+  };
+  audio.addEventListener('loadedmetadata', onMeta);
+
+  if (autoplay) {
+    const onCan = () => {
+      audio.removeEventListener('canplay', onCan);
+      if (token !== audioLoadToken) return;
+      audio.play().catch(() => {});
+    };
+    audio.addEventListener('canplay', onCan);
+  }
+  return true;
+}
+
+function onAudioEnded() {
+  const audio = globalAudioElement;
+  if (!audio) return;
+  const ep = getEpisodeById(audio.dataset.episodeId || state.radioCurrentChapterId);
+
+  if (state.radioABPoints.a != null && state.radioABPoints.b != null) {
+    audio.currentTime = state.radioABPoints.a;
+    audio.play().catch(() => {});
+    return;
+  }
+  if (ep && state.radioSegmentRepeat != null && ep.segments[state.radioSegmentRepeat]) {
+    audio.currentTime = parseTimeToSeconds(ep.segments[state.radioSegmentRepeat].time);
+    audio.play().catch(() => {});
+    return;
+  }
+  if (ep) storage.setRadioProgress(ep.id, 0, Number.isFinite(audio.duration) ? audio.duration : 0);
+
+  if (state.radioRepeatMode === 'one') {
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+    showToast('한 챕터 반복');
+    return;
+  }
+
+  const available = getAvailableEpisodes();
+  const idx = available.findIndex((item) => item.id === (ep && ep.id));
+  const next = idx >= 0 ? available[idx + 1] : null;
+  if (next) {
+    showToast(`다음: ${episodeLabel(next)}`);
+    loadEpisode(next.id, { autoplay: true, restore: false });
+    refreshAfterEpisodeChange();
+    return;
+  }
+  if (state.radioRepeatMode === 'all' && available.length) {
+    showToast('전체 반복: 처음부터');
+    loadEpisode(available[0].id, { autoplay: true, restore: false });
+    refreshAfterEpisodeChange();
+    return;
+  }
+  syncPlayIcons(false);
+  syncPlaybackUi();
+}
+
+function refreshAfterEpisodeChange() {
+  if (state.currentTab === 'radio') {
+    updateUrlHash('radio', { chapter: state.radioCurrentChapterId });
+    renderCurrentTab();
+  }
+  updatePlaylistCurrent();
+  syncPlaybackUi();
+}
+
+function skipEpisode(direction) {
+  const audio = ensureGlobalAudio();
+  if (direction < 0 && (audio.currentTime || 0) > 3) {
+    audio.currentTime = 0;
+    return;
+  }
+  const available = getAvailableEpisodes();
+  if (!available.length) return;
+  let idx = available.findIndex((ep) => ep.id === state.radioCurrentChapterId);
+  if (idx < 0) idx = 0;
+  let nextIdx = idx + direction;
+  if (state.radioRepeatMode === 'all') {
+    nextIdx = (nextIdx + available.length) % available.length;
+  } else if (nextIdx < 0 || nextIdx >= available.length) {
+    if (direction < 0) audio.currentTime = 0;
+    return;
+  }
+  loadEpisode(available[nextIdx].id, { autoplay: !audio.paused, restore: false });
+  refreshAfterEpisodeChange();
+}
+
+function togglePlay() {
+  const ep = getEpisodeById(state.radioCurrentChapterId);
+  if (!ep || !ep.available || !ep.audioFile) {
+    showToast('이 에피소드는 준비 중이에요');
+    return;
+  }
+  const audio = ensureGlobalAudio();
+  if (audio.dataset.episodeId !== ep.id) {
+    loadEpisode(ep.id, { autoplay: true, restore: true });
+    return;
+  }
+  if (audio.paused) audio.play().catch(() => {});
+  else audio.pause();
+}
+
+function setRepeatMode(mode, { silent = false } = {}) {
+  const next = mode === 'one' || mode === 'all' ? mode : 'off';
+  state.radioRepeatMode = next;
+  storage.setRadioRepeatMode(next);
+  syncRepeatChrome();
+  if (!silent) {
+    const names = { off: '반복 끄기', one: '한 챕터 반복', all: '전체 반복' };
+    showToast(names[next]);
+  }
+}
+
+function syncRepeatChrome() {
+  document.querySelectorAll('.repeat-mode-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-mode') === state.radioRepeatMode);
+  });
+  const miniRepeat = document.getElementById('mini-repeat');
+  if (miniRepeat) {
+    const short = { off: '끄기', one: '1회', all: '전체' };
+    const label = miniRepeat.querySelector('.mini-repeat-label');
+    if (label) label.textContent = short[state.radioRepeatMode] || '끄기';
+    miniRepeat.classList.toggle('active', state.radioRepeatMode !== 'off');
+    miniRepeat.dataset.repeatMode = state.radioRepeatMode;
+    miniRepeat.title = { off: '반복 끄기', one: '한 챕터 반복', all: '전체 반복' }[state.radioRepeatMode];
+  }
+  const notice = document.getElementById('auto-advance-notice');
+  if (notice) notice.textContent = buildAdvanceNotice();
+  updatePlaylistCurrent();
+}
+
+function buildAdvanceNotice() {
+  const ep = getEpisodeById(state.radioCurrentChapterId);
+  if (!ep || !ep.available) return '';
+  if (state.radioRepeatMode === 'one') return '🔁 이 에피소드를 반복 재생합니다';
+  const next = getNextAvailable(ep.id);
+  if (state.radioRepeatMode === 'all') {
+    if (next) return `🔁 전체 반복 · 다음은 ${episodeLabel(next)}`;
+    return '🔁 전체 반복 · 끝나면 첫 에피소드로 돌아갑니다';
+  }
+  if (next) return `✨ 끝나면 다음: ${episodeLabel(next)}`;
+  return '이 에피소드가 마지막이에요';
+}
+
+function syncPlayIcons(playing) {
+  document.querySelectorAll('[data-play-icon]').forEach((el) => {
+    el.style.display = playing ? 'none' : '';
+  });
+  document.querySelectorAll('[data-pause-icon]').forEach((el) => {
+    el.style.display = playing ? '' : 'none';
+  });
+}
+
+function syncPlaybackUi() {
+  const audio = globalAudioElement;
+  const ep = getEpisodeById(state.radioCurrentChapterId);
+  const titleEl = document.getElementById('mini-title');
+  if (titleEl) titleEl.textContent = episodeLabel(ep);
+  const dur = audio && Number.isFinite(audio.duration) ? audio.duration : 0;
+  const cur = audio ? audio.currentTime || 0 : 0;
+  const timeEl = document.getElementById('mini-time');
+  if (timeEl) {
+    timeEl.textContent = dur ? `${formatTime(cur)} / ${formatTime(dur)}` : (ep ? ep.duration : '0:00');
+  }
+  const fill = document.getElementById('mini-progress-fill');
+  if (fill) fill.style.width = dur ? `${Math.min(100, (cur / dur) * 100)}%` : '0%';
+
+  const currentTimeEl = document.getElementById('current-time');
+  const totalTimeEl = document.getElementById('total-time');
+  const bar = document.getElementById('progress-bar');
+  if (currentTimeEl) currentTimeEl.textContent = formatTime(cur);
+  if (totalTimeEl) totalTimeEl.textContent = dur ? formatTime(dur) : (ep ? ep.duration : '0:00');
+  if (bar && dur && document.activeElement !== bar) {
+    bar.max = dur;
+    bar.value = cur;
+  }
+  syncPlayIcons(!!(audio && !audio.paused));
+  updateABMarkers();
+}
+
+function updateABMarkers() {
+  const audio = globalAudioElement;
+  const dur = audio && Number.isFinite(audio.duration) ? audio.duration : 0;
+  const place = (id, time) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (time == null || !dur) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'block';
+    el.style.left = `${(time / dur) * 100}%`;
+  };
+  place('ab-marker-a', state.radioABPoints.a);
+  place('ab-marker-b', state.radioABPoints.b);
+  place('mini-ab-a', state.radioABPoints.a);
+  place('mini-ab-b', state.radioABPoints.b);
+
+  const showRange = dur && state.radioABPoints.a != null && state.radioABPoints.b != null;
+  ['ab-range', 'mini-ab-range'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!showRange) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'block';
+    el.style.left = `${(state.radioABPoints.a / dur) * 100}%`;
+    el.style.width = `${((state.radioABPoints.b - state.radioABPoints.a) / dur) * 100}%`;
+  });
+
+  const aTime = document.getElementById('a-time');
+  const bTime = document.getElementById('b-time');
+  if (aTime) aTime.textContent = state.radioABPoints.a != null ? formatTime(state.radioABPoints.a) : '--:--';
+  if (bTime) bTime.textContent = state.radioABPoints.b != null ? formatTime(state.radioABPoints.b) : '--:--';
+}
+
+function updatePlaylistCurrent() {
+  document.querySelectorAll('.playlist-item').forEach((el) => {
+    el.classList.toggle('current', el.getAttribute('data-id') === state.radioCurrentChapterId);
+  });
+  document.querySelectorAll('.playlist-item-repeat').forEach((el) => {
+    const on = state.radioRepeatMode === 'one' && el.getAttribute('data-repeat-id') === state.radioCurrentChapterId;
+    el.classList.toggle('active', on);
+  });
+}
+
+function renderPlaylistItems() {
+  const host = document.getElementById('playlist-items');
+  if (!host) return;
+  host.innerHTML = getOrderedEpisodes().map((ep) => {
+    const current = ep.id === state.radioCurrentChapterId;
+    const repeatOn = current && state.radioRepeatMode === 'one';
+    const badge = ep.type === 'dialogue' ? '실전 다이얼로그' : `Ch ${ep.number}`;
+    return `
+      <div class="playlist-item ${ep.type === 'dialogue' ? 'is-dialogue' : ''} ${current ? 'current' : ''} ${ep.available ? '' : 'unavailable'}" data-id="${ep.id}" data-type="${ep.type || 'chapter'}">
+        <button type="button" class="playlist-play" ${ep.available ? '' : 'disabled'}>
+          <span class="pl-badge">${badge}</span>
+          <span class="pl-title">${ep.title}</span>
+          <span class="pl-meta">${ep.available ? ep.duration : '준비 중'}</span>
+        </button>
+        ${ep.available ? `<button type="button" class="playlist-item-repeat ${repeatOn ? 'active' : ''}" data-repeat-id="${ep.id}">반복</button>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  host.querySelectorAll('.playlist-play').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.closest('.playlist-item')?.getAttribute('data-id');
+      const ep = getEpisodeById(id);
+      if (!ep || !ep.available) return;
+      selectEpisode(id, { autoplay: true, restore: true });
+    });
+  });
+  host.querySelectorAll('.playlist-item-repeat').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-repeat-id');
+      if (state.radioRepeatMode === 'one' && state.radioCurrentChapterId === id) {
+        setRepeatMode('off');
+        return;
+      }
+      selectEpisode(id, { autoplay: true, restore: state.radioCurrentChapterId !== id });
+      setRepeatMode('one');
+    });
+  });
+}
+
+function setPlaylistOpen(open) {
+  state.radioShowPlaylist = open;
+  const panel = document.getElementById('playlist-panel');
+  if (!panel) return;
+  panel.classList.toggle('open', open);
+  panel.hidden = !open;
+  document.getElementById('mini-playlist')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    renderPlaylistItems();
+    panel.querySelector('.playlist-item.current')?.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function selectEpisode(id, options) {
+  if (!loadEpisode(id, options)) return;
+  if (state.currentTab === 'radio') {
+    updateUrlHash('radio', { chapter: id });
+    renderCurrentTab();
+  }
+  updatePlaylistCurrent();
+  syncPlaybackUi();
+}
+
+function bindMediaSession(audio) {
+  if (!('mediaSession' in navigator)) return;
+  const safe = (name, handler) => {
+    try {
+      navigator.mediaSession.setActionHandler(name, handler);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+  safe('play', () => audio.play());
+  safe('pause', () => audio.pause());
+  safe('seekbackward', () => {
+    audio.currentTime = Math.max(0, (audio.currentTime || 0) - 15);
+  });
+  safe('seekforward', () => {
+    const dur = Number.isFinite(audio.duration) ? audio.duration : (audio.currentTime || 0) + 15;
+    audio.currentTime = Math.min(dur, (audio.currentTime || 0) + 15);
+  });
+  safe('seekto', (details) => {
+    if (details.seekTime != null) audio.currentTime = details.seekTime;
+  });
+  safe('nexttrack', () => skipEpisode(1));
+  safe('previoustrack', () => skipEpisode(-1));
+}
+
+function updateMediaSession(chapter, audio) {
+  if (!chapter || !audio || !('mediaSession' in navigator)) return;
+  const title = chapter.type === 'dialogue'
+    ? `실전 다이얼로그: ${chapter.title}`
+    : `Ch ${chapter.number}: ${chapter.title}`;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist: 'JP Study R1',
+      album: '오디오 학습',
+    });
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      navigator.mediaSession.setPositionState({
+        duration: audio.duration,
+        playbackRate: audio.playbackRate || 1,
+        position: Math.min(Math.max(audio.currentTime || 0, 0), audio.duration),
+      });
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+function seekBy(delta) {
+  const audio = ensureGlobalAudio();
+  const dur = Number.isFinite(audio.duration) ? audio.duration : Math.max(0, (audio.currentTime || 0) + delta);
+  audio.currentTime = Math.min(dur, Math.max(0, (audio.currentTime || 0) + delta));
+}
+
+function bindMiniPlayerEvents() {
+  if (bindMiniPlayerEvents.done) return;
+  bindMiniPlayerEvents.done = true;
+  document.getElementById('mini-play')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+  });
+  document.getElementById('mini-back')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekBy(-15);
+  });
+  document.getElementById('mini-forward')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekBy(15);
+  });
+  document.getElementById('mini-repeat')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const order = ['off', 'one', 'all'];
+    const idx = order.indexOf(state.radioRepeatMode);
+    setRepeatMode(order[(idx + 1) % order.length]);
+  });
+  const togglePlaylist = (e) => {
+    e.stopPropagation();
+    setPlaylistOpen(!state.radioShowPlaylist);
+  };
+  document.getElementById('mini-open-playlist')?.addEventListener('click', togglePlaylist);
+  document.getElementById('mini-playlist')?.addEventListener('click', togglePlaylist);
+  document.getElementById('pl-close')?.addEventListener('click', () => setPlaylistOpen(false));
+  document.getElementById('pl-back')?.addEventListener('click', () => seekBy(-15));
+  document.getElementById('pl-forward')?.addEventListener('click', () => seekBy(15));
+  document.addEventListener('click', (e) => {
+    if (!state.radioShowPlaylist) return;
+    const panel = document.getElementById('playlist-panel');
+    const mini = document.getElementById('global-mini-player');
+    if (panel?.contains(e.target) || mini?.contains(e.target)) return;
+    setPlaylistOpen(false);
+  });
+}
+
+function initGlobalRadioPlayer() {
+  ensureGlobalAudio();
+  const ep = getEpisodeById(state.radioCurrentChapterId);
+  if (ep && ep.available && ep.audioFile) {
+    loadEpisode(ep.id, { autoplay: false, restore: true });
+  }
+  bindMiniPlayerEvents();
+  renderPlaylistItems();
+  syncRepeatChrome();
+  syncPlaybackUi();
+  const mini = document.getElementById('global-mini-player');
+  if (!mini) return;
+  const applyHeight = () => {
+    document.documentElement.style.setProperty('--mini-player-h', `${mini.offsetHeight}px`);
+  };
+  applyHeight();
+  if ('ResizeObserver' in window) {
+    const observer = new ResizeObserver(applyHeight);
+    observer.observe(mini);
+  }
+}
+
+function segmentListHtml(episode) {
+  if (!episode.segments || !episode.segments.length) return '';
+  const rows = episode.segments.map((seg, idx) => `
+    <div class="segment-row">
+      <button type="button" class="segment-item" data-time="${seg.time}">
+        <span class="segment-time">${seg.time}</span>
+        <span class="segment-title">${seg.title}</span>
+      </button>
+      <button type="button" class="segment-repeat-btn ${state.radioSegmentRepeat === idx ? 'active' : ''}" data-segment-index="${idx}" title="이 세그먼트 반복">반복</button>
+    </div>
+  `).join('');
+  return `
+    <div class="chapter-segments">
+      <h4>📑 세그먼트</h4>
+      <div class="segments-list">${rows}</div>
+    </div>
+  `;
+}
+
+function renderRadio(container) {
+  const orderedEpisodes = getOrderedEpisodes();
+  const current = orderedEpisodes.find((ep) => ep.id === state.radioCurrentChapterId) || orderedEpisodes[0];
+  const audioPath = current && current.audioFile ? audioSrcFor(current) : '';
+  const heading = !current
+    ? '오디오 학습'
+    : (current.type === 'dialogue' ? `실전 다이얼로그 · ${current.title}` : `Ch ${current.number}: ${current.title}`);
+
+  const playerHtml = current && current.available ? `
+    <div class="radio-player-section" id="radio-player-section">
+      <div class="player-header">
+        <h3>${heading}</h3>
+        <span class="player-duration">${current.duration}</span>
+      </div>
+      <div class="audio-player-container">
+        <div class="player-progress">
+          <div class="progress-time" id="current-time">0:00</div>
+          <div class="progress-track">
+            <div class="ab-range" id="ab-range"></div>
+            <span class="ab-marker marker-a" id="ab-marker-a" data-label="A"></span>
+            <span class="ab-marker marker-b" id="ab-marker-b" data-label="B"></span>
+            <input type="range" id="progress-bar" class="progress-bar" min="0" max="100" value="0" step="0.1">
+          </div>
+          <div class="progress-time" id="total-time">${current.duration}</div>
+        </div>
+        <div class="player-controls">
+          <button type="button" class="control-btn skip-btn" id="btn-skip-back" title="15초 뒤로">−15</button>
+          <button type="button" class="control-btn play-btn" id="btn-play" title="재생/일시정지">
+            <svg data-play-icon id="play-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <svg data-pause-icon id="pause-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+              <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
+            </svg>
+          </button>
+          <button type="button" class="control-btn skip-btn" id="btn-skip-forward" title="15초 앞으로">+15</button>
+        </div>
+        <div class="player-options">
+          <div class="speed-control">
+            <span class="control-label">재생 속도</span>
+            <button type="button" class="speed-option ${state.radioSpeed === 0.85 ? 'active' : ''}" data-speed="0.85">0.85x</button>
+            <button type="button" class="speed-option ${state.radioSpeed === 1.0 ? 'active' : ''}" data-speed="1.0">1.0x</button>
+            <button type="button" class="speed-option ${state.radioSpeed === 1.25 ? 'active' : ''}" data-speed="1.25">1.25x</button>
+          </div>
+          <div class="repeat-control">
+            <span class="control-label">반복</span>
+            <button type="button" class="repeat-mode-btn ${state.radioRepeatMode === 'off' ? 'active' : ''}" data-mode="off">반복 끄기</button>
+            <button type="button" class="repeat-mode-btn ${state.radioRepeatMode === 'one' ? 'active' : ''}" data-mode="one">한 챕터 반복</button>
+            <button type="button" class="repeat-mode-btn ${state.radioRepeatMode === 'all' ? 'active' : ''}" data-mode="all">전체 반복</button>
+          </div>
+          <div class="ab-repeat-control">
+            <span class="control-label">A-B 반복</span>
+            <button type="button" class="ab-btn" id="btn-set-a">A <span id="a-time">--:--</span></button>
+            <button type="button" class="ab-btn" id="btn-set-b">B <span id="b-time">--:--</span></button>
+            <button type="button" class="ab-btn clear-btn" id="btn-clear-ab">해제</button>
+          </div>
+        </div>
+      </div>
+      <div class="player-fallback">
+        <a href="${audioPath}" target="_blank" class="mp3-link" download="${current.audioFile}">📥 MP3 파일 다운로드</a>
+        <span class="separator">•</span>
+        <a href="${audioPath}" target="_blank" class="mp3-link">🔗 브라우저에서 직접 열기</a>
+      </div>
+      ${segmentListHtml(current)}
+      <div class="auto-advance-notice" id="auto-advance-notice">${buildAdvanceNotice()}</div>
+    </div>
+  ` : `
+    <div class="radio-unavailable">
+      <p>이 에피소드는 아직 준비 중이에요.</p>
+    </div>
+  `;
+
+  const listHtml = orderedEpisodes.map((ep) => `
+    <div class="radio-chapter-card ${ep.type === 'dialogue' ? 'dialogue-card' : ''} ${ep.id === current.id ? 'active' : ''} ${ep.available ? '' : 'unavailable'}" data-chapter-id="${ep.id}">
+      <div class="chapter-number ${ep.type === 'dialogue' ? 'dialogue-badge' : ''}">${ep.type === 'dialogue' ? '실전' : `Ch ${ep.number}`}</div>
+      <div class="chapter-content">
+        ${ep.type === 'dialogue' ? '<span class="dialogue-pill">실전 다이얼로그</span>' : ''}
+        <h3>${ep.title}</h3>
+        <p class="chapter-subtitle">${ep.titleJa}</p>
+        <p class="chapter-desc">${ep.description}</p>
+        <div class="chapter-meta">
+          <span class="chapter-duration">⏱️ ${ep.duration}</span>
+          ${ep.topics.map((topic) => `<span class="chapter-topic">${topic}</span>`).join('')}
+        </div>
+        ${ep.available ? '' : '<div class="chapter-coming-soon">준비 중</div>'}
+      </div>
+    </div>
+  `).join('');
 
   container.innerHTML = `
     <div class="radio-container">
@@ -4478,311 +5188,114 @@ function renderRadio(container) {
         <h2>🎧 오디오 학습</h2>
         <p class="radio-subtitle">운전 중에도 듣는 일본어 오디오북</p>
       </div>
-
-      ${currentChapter.available ? `
-        <div class="radio-player-section" id="radio-player-section">
-          <div class="player-header">
-            <h3>Ch ${currentChapter.number}: ${currentChapter.title}</h3>
-            <span class="player-duration">${currentChapter.duration}</span>
-          </div>
-
-          <div class="audio-player-container">
-            <audio id="radio-audio" preload="metadata">
-              <source src="${audioPath}" type="audio/mpeg">
-            </audio>
-
-            <div class="player-progress">
-              <div class="progress-time" id="current-time">0:00</div>
-              <input type="range" id="progress-bar" class="progress-bar" min="0" max="100" value="0" step="0.1">
-              <div class="progress-time" id="total-time">0:00</div>
-            </div>
-
-            <div class="player-controls">
-              <button class="control-btn skip-btn" id="btn-skip-back" title="15초 뒤로">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 4v6h6M23 20v-6h-6"/>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                  <text x="12" y="15" text-anchor="middle" font-size="8" fill="currentColor">15</text>
-                </svg>
-              </button>
-
-              <button class="control-btn play-btn" id="btn-play" title="재생/일시정지">
-                <svg id="play-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-                <svg id="pause-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
-                  <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
-                </svg>
-              </button>
-
-              <button class="control-btn skip-btn" id="btn-skip-forward" title="15초 앞으로">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 4v6h-6M1 20v-6h6"/>
-                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                  <text x="12" y="15" text-anchor="middle" font-size="8" fill="currentColor">15</text>
-                </svg>
-              </button>
-            </div>
-
-            <div class="player-options">
-              <div class="speed-control">
-                <label>재생 속도:</label>
-                <button class="speed-option ${state.radioSpeed === 0.85 ? 'active' : ''}" data-speed="0.85">0.85x</button>
-                <button class="speed-option ${state.radioSpeed === 1.0 ? 'active' : ''}" data-speed="1.0">1.0x</button>
-                <button class="speed-option ${state.radioSpeed === 1.25 ? 'active' : ''}" data-speed="1.25">1.25x</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="player-fallback">
-            <a href="${audioPath}" target="_blank" class="mp3-link" download="${currentChapter.audioFile}">
-              📥 MP3 파일 다운로드
-            </a>
-            <span class="separator">•</span>
-            <a href="${audioPath}" target="_blank" class="mp3-link">
-              🔗 브라우저에서 직접 열기
-            </a>
-          </div>
-
-          ${currentChapter.segments.length > 0 ? `
-            <div class="chapter-segments">
-              <h4>📑 세그먼트 (클릭하여 이동)</h4>
-              <div class="segments-list">
-                ${currentChapter.segments.map((seg) => `
-                  <button class="segment-item" data-time="${seg.time}">
-                    <span class="segment-time">${seg.time}</span>
-                    <span class="segment-title">${seg.title}</span>
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-
-          ${nextChapter && nextChapter.available ? `
-            <div class="auto-advance-notice">
-              ✨ 이 챕터가 끝나면 자동으로 다음 챕터(Ch ${nextChapter.number}: ${nextChapter.title})로 이동합니다
-            </div>
-          ` : ''}
-        </div>
-      ` : `
-        <div class="radio-unavailable">
-          <p>이 챕터는 아직 준비 중입니다.</p>
-        </div>
-      `}
-
+      ${playerHtml}
       <div class="radio-chapters-list">
-        <h3 class="chapters-list-title">📋 챕터 목록</h3>
-        ${radioChapters.map((ch, idx) => `
-          <div class="radio-chapter-card ${ch.id === currentChapter.id ? 'active' : ''} ${!ch.available ? 'unavailable' : ''}"
-               data-chapter-id="${ch.id}">
-            <div class="chapter-number">Ch ${ch.number}</div>
-            <div class="chapter-content">
-              <h3>${ch.title}</h3>
-              <p class="chapter-subtitle">${ch.titleJa}</p>
-              <p class="chapter-desc">${ch.description}</p>
-              <div class="chapter-meta">
-                <span class="chapter-duration">⏱️ ${ch.duration}</span>
-                ${ch.topics.map(t => `<span class="chapter-topic">${t}</span>`).join('')}
-              </div>
-              ${!ch.available ? '<div class="chapter-coming-soon">준비 중</div>' : ''}
-            </div>
-          </div>
-        `).join('')}
+        <h3 class="chapters-list-title">📋 에피소드 목록</h3>
+        ${listHtml}
       </div>
     </div>
   `;
 
-  if (currentChapter.available && audioPath) {
-    attachRadioPlayerEvents(currentChapter, nextChapter);
-  }
-
+  if (current && current.available) bindFullPlayerControls();
   document.querySelectorAll('.radio-chapter-card').forEach((card) => {
     card.addEventListener('click', () => {
       const chapterId = card.getAttribute('data-chapter-id');
-      const chapter = radioChapters.find((ch) => ch.id === chapterId);
-      if (chapter && chapter.available) {
-        state.radioCurrentChapterId = chapterId;
-        updateUrlHash('radio', { chapter: chapterId });
-        renderCurrentTab();
-        
-        setTimeout(() => {
-          const playerSection = document.getElementById('radio-player-section');
-          if (playerSection) {
-            playerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            playerSection.classList.add('highlight-player');
-            setTimeout(() => playerSection.classList.remove('highlight-player'), 2000);
-          }
-        }, 100);
-      }
+      const chapter = getEpisodeById(chapterId);
+      if (!chapter || !chapter.available) return;
+      const playing = !!(globalAudioElement && !globalAudioElement.paused);
+      selectEpisode(chapterId, { autoplay: playing, restore: true });
+      setTimeout(() => {
+        const playerSection = document.getElementById('radio-player-section');
+        if (!playerSection) return;
+        playerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        playerSection.classList.add('highlight-player');
+        setTimeout(() => playerSection.classList.remove('highlight-player'), 2000);
+      }, 80);
     });
   });
+  syncRepeatChrome();
+  syncPlaybackUi();
 }
 
-function attachRadioPlayerEvents(currentChapter, nextChapter) {
-  const audio = document.getElementById('radio-audio');
-  const playBtn = document.getElementById('btn-play');
-  const playIcon = document.getElementById('play-icon');
-  const pauseIcon = document.getElementById('pause-icon');
-  const progressBar = document.getElementById('progress-bar');
-  const currentTimeEl = document.getElementById('current-time');
-  const totalTimeEl = document.getElementById('total-time');
-  const skipBackBtn = document.getElementById('btn-skip-back');
-  const skipForwardBtn = document.getElementById('btn-skip-forward');
-
-  if (!audio) return;
-
-  const savedProgress = storage.getRadioProgress(currentChapter.id);
-  let isProgressRestored = false;
-
-  audio.playbackRate = state.radioSpeed;
-
-  audio.addEventListener('loadedmetadata', () => {
-    totalTimeEl.textContent = formatTime(audio.duration);
-    progressBar.max = audio.duration;
-
-    if (savedProgress.currentTime > 0 && savedProgress.currentTime < audio.duration - 5) {
-      audio.currentTime = savedProgress.currentTime;
-      isProgressRestored = true;
-    }
+function bindFullPlayerControls() {
+  const audio = ensureGlobalAudio();
+  document.getElementById('btn-play')?.addEventListener('click', togglePlay);
+  document.getElementById('btn-skip-back')?.addEventListener('click', () => seekBy(-15));
+  document.getElementById('btn-skip-forward')?.addEventListener('click', () => seekBy(15));
+  document.getElementById('progress-bar')?.addEventListener('input', (e) => {
+    audio.currentTime = Number(e.target.value);
   });
-
-  audio.addEventListener('timeupdate', () => {
-    if (!isNaN(audio.duration)) {
-      currentTimeEl.textContent = formatTime(audio.currentTime);
-      progressBar.value = audio.currentTime;
-
-      if (audio.currentTime > 5 || isProgressRestored) {
-        storage.setRadioProgress(currentChapter.id, audio.currentTime, audio.duration);
-      }
-    }
-  });
-
-  audio.addEventListener('ended', () => {
-    storage.setRadioProgress(currentChapter.id, 0, audio.duration);
-
-    if (nextChapter && nextChapter.available) {
-      showToast(`다음 챕터로 이동: Ch ${nextChapter.number}`);
-      setTimeout(() => {
-        state.radioCurrentChapterId = nextChapter.id;
-        updateUrlHash('radio', { chapter: nextChapter.id });
-        renderCurrentTab();
-      }, 1500);
-    } else {
-      playIcon.style.display = 'block';
-      pauseIcon.style.display = 'none';
-    }
-  });
-
-  playBtn.addEventListener('click', () => {
-    if (audio.paused) {
-      audio.play();
-      playIcon.style.display = 'none';
-      pauseIcon.style.display = 'block';
-      updateMediaSession(currentChapter, audio);
-    } else {
-      audio.pause();
-      playIcon.style.display = 'block';
-      pauseIcon.style.display = 'none';
-    }
-  });
-
-  skipBackBtn.addEventListener('click', () => {
-    audio.currentTime = Math.max(0, audio.currentTime - 15);
-  });
-
-  skipForwardBtn.addEventListener('click', () => {
-    audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
-  });
-
-  progressBar.addEventListener('input', (e) => {
-    audio.currentTime = e.target.value;
-  });
-
   document.querySelectorAll('.speed-option').forEach((btn) => {
     btn.addEventListener('click', () => {
       const speed = parseFloat(btn.getAttribute('data-speed'));
       state.radioSpeed = speed;
       audio.playbackRate = speed;
       storage.setRadioSpeed(speed);
-
-      document.querySelectorAll('.speed-option').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.speed-option').forEach((item) => item.classList.remove('active'));
       btn.classList.add('active');
       showToast(`재생 속도: ${speed}x`);
     });
   });
-
+  document.querySelectorAll('.repeat-mode-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setRepeatMode(btn.getAttribute('data-mode')));
+  });
+  document.getElementById('btn-set-a')?.addEventListener('click', () => {
+    state.radioSegmentRepeat = null;
+    state.radioABPoints.a = audio.currentTime || 0;
+    if (state.radioABPoints.b != null && state.radioABPoints.b <= state.radioABPoints.a) {
+      state.radioABPoints.b = null;
+    }
+    document.querySelectorAll('.segment-repeat-btn').forEach((btn) => btn.classList.remove('active'));
+    updateABMarkers();
+    showToast(`A 지점: ${formatTime(state.radioABPoints.a)}`);
+  });
+  document.getElementById('btn-set-b')?.addEventListener('click', () => {
+    if (state.radioABPoints.a == null) {
+      showToast('먼저 A 지점을 설정하세요');
+      return;
+    }
+    if ((audio.currentTime || 0) <= state.radioABPoints.a) {
+      showToast('B는 A보다 뒤에 있어야 합니다');
+      return;
+    }
+    state.radioSegmentRepeat = null;
+    state.radioABPoints.b = audio.currentTime;
+    document.querySelectorAll('.segment-repeat-btn').forEach((btn) => btn.classList.remove('active'));
+    updateABMarkers();
+    showToast(`B 지점: ${formatTime(state.radioABPoints.b)} · A-B 반복`);
+  });
+  document.getElementById('btn-clear-ab')?.addEventListener('click', () => {
+    state.radioABPoints = { a: null, b: null };
+    updateABMarkers();
+    showToast('A-B 반복 해제');
+  });
   document.querySelectorAll('.segment-item').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const timeStr = btn.getAttribute('data-time');
-      const seconds = parseTimeToSeconds(timeStr);
-      audio.currentTime = seconds;
-      if (audio.paused) {
-        audio.play();
-        playIcon.style.display = 'none';
-        pauseIcon.style.display = 'block';
-        updateMediaSession(currentChapter, audio);
-      }
+      audio.currentTime = parseTimeToSeconds(btn.getAttribute('data-time'));
+      if (audio.paused) audio.play().catch(() => {});
     });
   });
-
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.setActionHandler('play', () => {
-      audio.play();
-      playIcon.style.display = 'none';
-      pauseIcon.style.display = 'block';
-    });
-
-    navigator.mediaSession.setActionHandler('pause', () => {
-      audio.pause();
-      playIcon.style.display = 'block';
-      pauseIcon.style.display = 'none';
-    });
-
-    navigator.mediaSession.setActionHandler('seekbackward', () => {
-      audio.currentTime = Math.max(0, audio.currentTime - 15);
-    });
-
-    navigator.mediaSession.setActionHandler('seekforward', () => {
-      audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
-    });
-
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-      if (details.seekTime) {
-        audio.currentTime = details.seekTime;
+  document.querySelectorAll('.segment-repeat-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.getAttribute('data-segment-index'), 10);
+      const ep = getEpisodeById(state.radioCurrentChapterId);
+      if (!ep || !ep.segments[idx]) return;
+      if (state.radioSegmentRepeat === idx) {
+        state.radioSegmentRepeat = null;
+        btn.classList.remove('active');
+        showToast('세그먼트 반복 해제');
+        return;
       }
+      state.radioABPoints = { a: null, b: null };
+      state.radioSegmentRepeat = idx;
+      document.querySelectorAll('.segment-repeat-btn').forEach((item) => item.classList.remove('active'));
+      btn.classList.add('active');
+      audio.currentTime = parseTimeToSeconds(ep.segments[idx].time);
+      updateABMarkers();
+      showToast(`세그먼트 반복: ${ep.segments[idx].title}`);
+      if (audio.paused) audio.play().catch(() => {});
     });
-  }
-}
-
-function updateMediaSession(chapter, audio) {
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: `Ch ${chapter.number}: ${chapter.title}`,
-      artist: 'JP Study R1',
-      album: '오디오 학습',
-    });
-
-    navigator.mediaSession.setPositionState({
-      duration: audio.duration,
-      playbackRate: audio.playbackRate,
-      position: audio.currentTime,
-    });
-  }
-}
-
-function formatTime(seconds) {
-  if (isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-function parseTimeToSeconds(timeStr) {
-  const parts = timeStr.split(':').map((p) => parseInt(p, 10));
-  if (parts.length === 2) {
-    return parts[0] * 60 + parts[1];
-  }
-  return 0;
+  });
 }
 
 // Global ESC key listener for modals
@@ -4791,6 +5304,9 @@ window.addEventListener('keydown', (e) => {
     const backupModal = document.getElementById('backup-modal');
     if (backupModal && backupModal.classList.contains('active')) {
       closeBackupModal();
+    }
+    if (state.radioShowPlaylist) {
+      setPlaylistOpen(false);
     }
   }
 });
