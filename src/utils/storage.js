@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   MINI_QUIZ: 'jp_study_mini_quiz_v1',
   RADIO_PROGRESS: 'jp_study_radio_progress_v1',
   RADIO_SPEED: 'jp_study_radio_speed_v1',
+  RADIO_REPEAT_MODE: 'jp_study_radio_repeat_mode_v1',
 };
 
 export const storage = {
@@ -266,6 +267,24 @@ export const storage = {
   setRadioSpeed(speed) {
     try {
       localStorage.setItem(STORAGE_KEYS.RADIO_SPEED, speed.toString());
+    } catch (e) {
+      console.warn('Storage save error:', e);
+    }
+  },
+
+  getRadioRepeatMode() {
+    try {
+      const mode = localStorage.getItem(STORAGE_KEYS.RADIO_REPEAT_MODE);
+      if (mode === 'one' || mode === 'all' || mode === 'off') return mode;
+      return 'off';
+    } catch {
+      return 'off';
+    }
+  },
+
+  setRadioRepeatMode(mode) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RADIO_REPEAT_MODE, mode);
     } catch (e) {
       console.warn('Storage save error:', e);
     }
