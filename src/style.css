@@ -89,12 +89,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .logo-group {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .logo-badge {
@@ -115,6 +118,7 @@ body {
   font-weight: 800;
   color: var(--color-text-main);
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .header-title-wrap p {

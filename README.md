@@ -1,4 +1,4 @@
-# 🇯🇵 JP Study R1 (도쿄·후지산 3박 4일 속성 일본어 과외 & 테스트 웹)
+# 🇯🇵 JP Study R1 (속성 회화)
 
 [![Deploy Website to GitHub Pages](https://github.com/naturalkei/jp-study-r1/actions/workflows/deploy.yml/badge.svg)](https://github.com/naturalkei/jp-study-r1/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)

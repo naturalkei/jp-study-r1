@@ -197,7 +197,7 @@ function renderApp() {
             <span class="logo-badge">🗻</span>
             <div class="header-title-wrap">
               <h1>JP Study R1</h1>
-              <p>도쿄·관광지 초밀착 속성 회화 과외</p>
+              <p>속성 회화</p>
             </div>
           </div>
           <div class="header-actions">
