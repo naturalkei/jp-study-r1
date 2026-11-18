@@ -190,7 +190,7 @@ function renderApp() {
           📚 데일리 학습 프로그램
         </button>
         <button class="tab-btn ${state.currentTab === 'radio' ? 'active' : ''}" data-tab="radio">
-          📻 미나 라디오
+          🎧 오디오 학습
         </button>
         <button class="tab-btn ${state.currentTab === 'immigration' ? 'active' : ''}" data-tab="immigration">
           ✈️ 공항 입출국심사
@@ -4462,7 +4462,7 @@ function attachBackupModalEvents() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. Radio (미나 라디오)
+// 9. Radio (오디오 학습)
 // ---------------------------------------------------------------------------
 function renderRadio(container) {
   const currentChapter = radioChapters.find((ch) => ch.id === state.radioCurrentChapterId) || radioChapters[0];
@@ -4475,31 +4475,12 @@ function renderRadio(container) {
   container.innerHTML = `
     <div class="radio-container">
       <div class="radio-header">
-        <h2>📻 미나 라디오</h2>
+        <h2>🎧 오디오 학습</h2>
         <p class="radio-subtitle">운전 중에도 듣는 일본어 오디오북</p>
       </div>
 
-      <div class="radio-chapters-list">
-        ${radioChapters.map((ch, idx) => `
-          <div class="radio-chapter-card ${ch.id === currentChapter.id ? 'active' : ''} ${!ch.available ? 'unavailable' : ''}"
-               data-chapter-id="${ch.id}">
-            <div class="chapter-number">Ch ${ch.number}</div>
-            <div class="chapter-content">
-              <h3>${ch.title}</h3>
-              <p class="chapter-subtitle">${ch.titleJa}</p>
-              <p class="chapter-desc">${ch.description}</p>
-              <div class="chapter-meta">
-                <span class="chapter-duration">⏱️ ${ch.duration}</span>
-                ${ch.topics.map(t => `<span class="chapter-topic">${t}</span>`).join('')}
-              </div>
-              ${!ch.available ? '<div class="chapter-coming-soon">준비 중</div>' : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-
       ${currentChapter.available ? `
-        <div class="radio-player-section">
+        <div class="radio-player-section" id="radio-player-section">
           <div class="player-header">
             <h3>Ch ${currentChapter.number}: ${currentChapter.title}</h3>
             <span class="player-duration">${currentChapter.duration}</span>
@@ -4553,6 +4534,16 @@ function renderRadio(container) {
             </div>
           </div>
 
+          <div class="player-fallback">
+            <a href="${audioPath}" target="_blank" class="mp3-link" download="${currentChapter.audioFile}">
+              📥 MP3 파일 다운로드
+            </a>
+            <span class="separator">•</span>
+            <a href="${audioPath}" target="_blank" class="mp3-link">
+              🔗 브라우저에서 직접 열기
+            </a>
+          </div>
+
           ${currentChapter.segments.length > 0 ? `
             <div class="chapter-segments">
               <h4>📑 세그먼트 (클릭하여 이동)</h4>
@@ -4578,6 +4569,26 @@ function renderRadio(container) {
           <p>이 챕터는 아직 준비 중입니다.</p>
         </div>
       `}
+
+      <div class="radio-chapters-list">
+        <h3 class="chapters-list-title">📋 챕터 목록</h3>
+        ${radioChapters.map((ch, idx) => `
+          <div class="radio-chapter-card ${ch.id === currentChapter.id ? 'active' : ''} ${!ch.available ? 'unavailable' : ''}"
+               data-chapter-id="${ch.id}">
+            <div class="chapter-number">Ch ${ch.number}</div>
+            <div class="chapter-content">
+              <h3>${ch.title}</h3>
+              <p class="chapter-subtitle">${ch.titleJa}</p>
+              <p class="chapter-desc">${ch.description}</p>
+              <div class="chapter-meta">
+                <span class="chapter-duration">⏱️ ${ch.duration}</span>
+                ${ch.topics.map(t => `<span class="chapter-topic">${t}</span>`).join('')}
+              </div>
+              ${!ch.available ? '<div class="chapter-coming-soon">준비 중</div>' : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
     </div>
   `;
 
@@ -4593,6 +4604,15 @@ function renderRadio(container) {
         state.radioCurrentChapterId = chapterId;
         updateUrlHash('radio', { chapter: chapterId });
         renderCurrentTab();
+        
+        setTimeout(() => {
+          const playerSection = document.getElementById('radio-player-section');
+          if (playerSection) {
+            playerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            playerSection.classList.add('highlight-player');
+            setTimeout(() => playerSection.classList.remove('highlight-player'), 2000);
+          }
+        }, 100);
       }
     });
   });
@@ -4738,8 +4758,8 @@ function updateMediaSession(chapter, audio) {
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: `Ch ${chapter.number}: ${chapter.title}`,
-      artist: '미나 (JP Study R1)',
-      album: '미나 라디오',
+      artist: 'JP Study R1',
+      album: '오디오 학습',
     });
 
     navigator.mediaSession.setPositionState({
