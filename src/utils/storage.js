@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   ROLEPLAY_DONE: 'jp_study_roleplay_done_v1',
   AUDIO_SPEED: 'jp_study_audio_speed_v1',
   MINI_QUIZ: 'jp_study_mini_quiz_v1',
+  RADIO_PROGRESS: 'jp_study_radio_progress_v1',
+  RADIO_SPEED: 'jp_study_radio_speed_v1',
 };
 
 export const storage = {
@@ -229,6 +231,44 @@ export const storage = {
     }
 
     return true;
+  },
+
+  getRadioProgress(chapterId) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.RADIO_PROGRESS);
+      const progress = data ? JSON.parse(data) : {};
+      return progress[chapterId] || { currentTime: 0, duration: 0 };
+    } catch {
+      return { currentTime: 0, duration: 0 };
+    }
+  },
+
+  setRadioProgress(chapterId, currentTime, duration) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.RADIO_PROGRESS);
+      const progress = data ? JSON.parse(data) : {};
+      progress[chapterId] = { currentTime, duration };
+      localStorage.setItem(STORAGE_KEYS.RADIO_PROGRESS, JSON.stringify(progress));
+    } catch (e) {
+      console.warn('Storage save error:', e);
+    }
+  },
+
+  getRadioSpeed() {
+    try {
+      const speed = localStorage.getItem(STORAGE_KEYS.RADIO_SPEED);
+      return speed ? parseFloat(speed) : 1.0;
+    } catch {
+      return 1.0;
+    }
+  },
+
+  setRadioSpeed(speed) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RADIO_SPEED, speed.toString());
+    } catch (e) {
+      console.warn('Storage save error:', e);
+    }
   },
 
   resetAll() {

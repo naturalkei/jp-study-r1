@@ -1,0 +1,111 @@
+export const radioChapters = [
+  {
+    id: 'ch01',
+    number: 1,
+    title: '마법 단어와 엔화',
+    titleJa: 'マジックワードと円',
+    description: '편의점과 식당에서 꼭 필요한 세 가지 마법 단어(すみません, これください, 大丈夫です)와 1~10 숫자, 엔화 듣기 연습',
+    topics: ['마법 단어 3개', '숫자 1~10', '엔화 백·천·만', '편의점 대화', '식당 주문'],
+    duration: '28:30',
+    audioFile: 'ch01-magic-words-yen.mp3',
+    available: true,
+    segments: [
+      { time: '0:00', title: '인트로' },
+      { time: '0:42', title: '마법 단어 1: すみません (스미마셍)' },
+      { time: '3:26', title: '마법 단어 2: これ、ください (코레, 쿠다사이)' },
+      { time: '5:49', title: '마법 단어 3: 大丈夫です (다이죠오부데스)' },
+      { time: '8:28', title: '편의점 대화 실습' },
+      { time: '11:44', title: '식당 주문 실습' },
+      { time: '14:49', title: '숫자 1~10' },
+      { time: '18:48', title: '숫자 10단위' },
+      { time: '20:29', title: '엔화 — 백 단위' },
+      { time: '24:30', title: '엔화 — 천·만 단위' },
+      { time: '26:24', title: '퀴즈' },
+      { time: '27:22', title: '복습 & 마무리' }
+    ]
+  },
+  {
+    id: 'ch02',
+    number: 2,
+    title: '입국 심사 & 세관',
+    titleJa: '入国審査と税関',
+    description: '나리타 공항 입국 심사에서 필요한 필수 표현과 숙소 이름 말하기, 세관 질문 대응',
+    topics: ['입국 목적', '체류 기간', '숙소 이름', '세관 질문'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
+    id: 'ch03',
+    number: 3,
+    title: '나리타 교통 & 티켓',
+    titleJa: '成田交通とチケット',
+    description: '나리타에서 가와구치코까지 이동 경로와 버스 티켓 구매, 길 묻기',
+    topics: ['버스 티켓', '시간표', '길 묻기', '이동 표현'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
+    id: 'ch04',
+    number: 4,
+    title: '호텔 체크인 & 편의점',
+    titleJa: 'ホテルチェックインとコンビニ',
+    description: '파크 호텔 체크인 필수 표현과 편의점 쇼핑 심화 연습',
+    topics: ['체크인', '방 번호', '편의점 쇼핑', '포인트 카드'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
+    id: 'ch05',
+    number: 5,
+    title: '후지산 & 호우토우',
+    titleJa: '富士山とほうとう',
+    description: '유라리 온천 표현과 호우토우 식당 주문 연습',
+    topics: ['온천 표현', '호우토우 주문', '사진 촬영', '경치 표현'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
+    id: 'ch06',
+    number: 6,
+    title: '우에노 & 칸데오',
+    titleJa: '上野とカンデオ',
+    description: '우에노역 도착과 칸데오 호텔 체크인, 주변 식당 찾기',
+    topics: ['역 표현', '호텔 이동', '식당 찾기', '길 안내'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
+    id: 'ch07',
+    number: 7,
+    title: '우에노 쇼핑',
+    titleJa: '上野ショッピング',
+    description: '아메요코 쇼핑과 기념품 구매 표현',
+    topics: ['가격 흥정', '기념품', '쇼핑백', '환불'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
+    id: 'ch08',
+    number: 8,
+    title: '이자카야 & 귀국',
+    titleJa: '居酒屋と帰国',
+    description: '이자카야 주문과 스카이라이너 탑승, 귀국 준비',
+    topics: ['이자카야 주문', '스카이라이너', '귀국 수속', '작별 인사'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  }
+];
