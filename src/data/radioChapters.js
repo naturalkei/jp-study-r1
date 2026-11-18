@@ -1,7 +1,9 @@
 export const radioChapters = [
   {
     id: 'ch01',
+    type: 'chapter',
     number: 1,
+    afterChapter: null,
     title: '마법 단어와 엔화',
     titleJa: 'マジックワードと円',
     description: '편의점과 식당에서 꼭 필요한 세 가지 마법 단어(すみません, これください, 大丈夫です)와 1~10 숫자, 엔화 듣기 연습',
@@ -25,8 +27,24 @@ export const radioChapters = [
     ]
   },
   {
+    id: 'dlg01',
+    type: 'dialogue',
+    number: 1,
+    afterChapter: 'ch01',
+    title: '편의점 실전 다이얼로그',
+    titleJa: 'コンビニの会話',
+    description: '1화에서 배운 마법 단어와 엔화 표현을 짧은 대화로 다시 듣는 연습이에요.',
+    topics: ['편의점', '계산', '마법 단어'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
     id: 'ch02',
+    type: 'chapter',
     number: 2,
+    afterChapter: null,
     title: '입국 심사 & 세관',
     titleJa: '入国審査と税関',
     description: '공항 입국 심사에서 필요한 필수 표현과 질문 대응 방법, 세관 통과 연습',
@@ -53,8 +71,24 @@ export const radioChapters = [
     ]
   },
   {
+    id: 'dlg02',
+    type: 'dialogue',
+    number: 2,
+    afterChapter: 'ch02',
+    title: '입국 심사 실전 다이얼로그',
+    titleJa: '入国審査の会話',
+    description: '입국 심사와 세관에서 쓰는 질문을 짧은 대화로 복습하는 연습이에요.',
+    topics: ['입국 심사', '세관', '질문 응답'],
+    duration: '예정',
+    audioFile: null,
+    available: false,
+    segments: []
+  },
+  {
     id: 'ch03',
+    type: 'chapter',
     number: 3,
+    afterChapter: null,
     title: '교통 & 이동',
     titleJa: '交通と移動',
     description: '공항에서 시내까지 이동 방법과 티켓 구매, 길 묻기',
@@ -66,7 +100,9 @@ export const radioChapters = [
   },
   {
     id: 'ch04',
+    type: 'chapter',
     number: 4,
+    afterChapter: null,
     title: '호텔 체크인',
     titleJa: 'ホテルチェックイン',
     description: '호텔 체크인 필수 표현과 숙박 관련 대화',
@@ -78,7 +114,9 @@ export const radioChapters = [
   },
   {
     id: 'ch05',
+    type: 'chapter',
     number: 5,
+    afterChapter: null,
     title: '관광지 & 식당',
     titleJa: '観光地とレストラン',
     description: '관광지에서 사용하는 표현과 현지 식당 주문 연습',
@@ -90,7 +128,9 @@ export const radioChapters = [
   },
   {
     id: 'ch06',
+    type: 'chapter',
     number: 6,
+    afterChapter: null,
     title: '쇼핑',
     titleJa: 'ショッピング',
     description: '쇼핑 시 필요한 표현과 기념품 구매',
@@ -102,7 +142,9 @@ export const radioChapters = [
   },
   {
     id: 'ch07',
+    type: 'chapter',
     number: 7,
+    afterChapter: null,
     title: '이자카야 & 선술집',
     titleJa: '居酒屋',
     description: '이자카야에서 음식과 음료 주문하기',
@@ -114,7 +156,9 @@ export const radioChapters = [
   },
   {
     id: 'ch08',
+    type: 'chapter',
     number: 8,
+    afterChapter: null,
     title: '귀국 준비',
     titleJa: '帰国準備',
     description: '공항으로 이동하고 귀국 수속 진행하기',
