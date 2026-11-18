@@ -50,6 +50,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  scroll-padding-top: calc(var(--mini-player-h) + 12px);
+}
+
 body {
   font-family: var(--font-base);
   background-color: var(--color-bg);
@@ -4088,6 +4092,13 @@ body {
 .segment-repeat-btn {
   flex: 0 0 64px;
   padding: 8px;
+  scroll-margin-top: calc(var(--mini-player-h) + 16px);
+}
+
+.radio-player-section,
+.ab-btn,
+.repeat-mode-btn {
+  scroll-margin-top: calc(var(--mini-player-h) + 16px);
 }
 
 .skip-btn {
