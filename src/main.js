@@ -190,7 +190,7 @@ function renderApp() {
           📚 데일리 학습 프로그램
         </button>
         <button class="tab-btn ${state.currentTab === 'radio' ? 'active' : ''}" data-tab="radio">
-          📻 미나 라디오
+          🎧 오디오 학습
         </button>
         <button class="tab-btn ${state.currentTab === 'immigration' ? 'active' : ''}" data-tab="immigration">
           ✈️ 공항 입출국심사
@@ -4462,7 +4462,7 @@ function attachBackupModalEvents() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. Radio (미나 라디오)
+// 9. Radio (오디오 학습)
 // ---------------------------------------------------------------------------
 function renderRadio(container) {
   const currentChapter = radioChapters.find((ch) => ch.id === state.radioCurrentChapterId) || radioChapters[0];
@@ -4475,7 +4475,7 @@ function renderRadio(container) {
   container.innerHTML = `
     <div class="radio-container">
       <div class="radio-header">
-        <h2>📻 미나 라디오</h2>
+        <h2>🎧 오디오 학습</h2>
         <p class="radio-subtitle">운전 중에도 듣는 일본어 오디오북</p>
       </div>
 
@@ -4758,8 +4758,8 @@ function updateMediaSession(chapter, audio) {
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: `Ch ${chapter.number}: ${chapter.title}`,
-      artist: '미나 (JP Study R1)',
-      album: '미나 라디오',
+      artist: 'JP Study R1',
+      album: '오디오 학습',
     });
 
     navigator.mediaSession.setPositionState({
