@@ -209,19 +209,6 @@ function renderApp() {
             </button>
           </div>
         </div>
-
-        <div class="trip-summary-banner">
-          <div class="trip-route">
-            <span>🛫 인천공항</span>
-            <span>➔</span>
-            <span>나리타</span>
-            <span>➔</span>
-            <span>관광지 (2박)</span>
-            <span>➔</span>
-            <span>우에노 (1박)</span>
-          </div>
-          <span class="trip-days-badge">3박 4일 코스</span>
-        </div>
       </header>
 
       <nav class="nav-tabs" id="nav-tabs">
